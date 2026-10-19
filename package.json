@@ -1,0 +1,8 @@
+{
+  "name": "college-quiz-competition",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": { "dev": "vite --host 0.0.0.0", "build": "vite build", "preview": "vite preview --host 0.0.0.0" },
+  "dependencies": { "@supabase/supabase-js": "^2.57.0", "vite": "^6.3.5" },
+  "devDependencies": {}
+}

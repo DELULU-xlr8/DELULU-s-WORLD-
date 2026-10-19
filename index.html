@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#101827" />
+  <title>College Quiz Competition</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="glow glow-a"></div><div class="glow glow-b"></div>
+  <header class="topbar">
+    <a class="brand" href="#"><span class="brand-mark">CQ</span><span>College Quiz <small>COMPETITION</small></span></a>
+    <div class="top-actions"><span id="user-label" class="muted"></span><button id="logout-btn" class="btn btn-ghost hidden">Log out</button></div>
+  </header>
+  <main class="shell">
+    <section class="hero">
+      <div class="eyebrow"><span class="pulse"></span> WEEKLY KNOWLEDGE CHALLENGE</div>
+      <h1>Think fast.<br><span>Climb the leaderboard.</span></h1>
+      <p>Play this week’s quiz, earn points for correct answers, and see who finishes on top.</p>
+      <div class="hero-stats"><div><b>01</b><span>Answer smart</span></div><div><b>02</b><span>Earn points</span></div><div><b>03</b><span>Make the board</span></div></div>
+    </section>
+
+    <section id="auth-panel" class="panel auth-panel">
+      <div class="panel-heading"><div><div class="eyebrow">GET STARTED</div><h2>Your quiz account</h2></div><span class="icon-bubble">↗</span></div>
+      <div class="tabs"><button id="login-tab" class="tab active">Log in</button><button id="signup-tab" class="tab">Create account</button></div>
+      <form id="auth-form">
+        <label id="name-wrap" class="hidden">Full name<input id="full-name" autocomplete="name" placeholder="Your name" /></label>
+        <label>Email address<input id="email" type="email" autocomplete="email" required placeholder="you@example.com" /></label>
+        <label>Password<input id="password" type="password" autocomplete="current-password" minlength="6" required placeholder="At least 6 characters" /></label>
+        <button id="auth-submit" class="btn btn-primary full" type="submit">Log in <span>→</span></button>
+        <p id="auth-message" class="notice" role="status"></p>
+      </form>
+      <p class="tiny">Use one account per participant. Your weekly points are saved to your account.</p>
+    </section>
+
+    <section id="app-panel" class="hidden">
+      <div class="section-title"><div><div class="eyebrow">YOUR DASHBOARD</div><h2>Ready for the challenge?</h2></div><span id="week-label" class="week-chip">This week</span></div>
+      <div class="dashboard-grid">
+        <section class="panel quiz-panel">
+          <div class="panel-heading"><div><div class="eyebrow">CURRENT ROUND</div><h2>Weekly quiz</h2></div><span class="icon-bubble">✦</span></div>
+          <div id="quiz-content"><div class="empty"><div class="empty-icon">◎</div><h3>Questions are on the way</h3><p>The quiz administrator hasn’t published this week’s questions yet.</p></div></div>
+        </section>
+        <section class="panel leaderboard-panel">
+          <div class="panel-heading"><div><div class="eyebrow">LIVE STANDINGS</div><h2>Leaderboard</h2></div><span class="live-chip"><i></i> LIVE</span></div>
+          <div id="leaderboard"><div class="loading">Loading weekly scores…</div></div>
+          <div class="panel-footer">Rankings refresh when you reload the page.</div>
+        </section>
+      </div>
+      <section class="panel archive-panel">
+        <div class="panel-heading"><div><div class="eyebrow">PAST CHAMPIONS</div><h2>Weekly winners archive</h2></div><span class="icon-bubble">♜</span></div>
+        <div id="archive"><p class="muted">No archived weeks yet. Winners appear after a week is closed and archived.</p></div>
+      </section>
+      <section id="admin-panel" class="panel admin-panel hidden">
+        <div class="panel-heading"><div><div class="eyebrow">ADMIN WORKSPACE</div><h2>Manage questions</h2></div><span class="admin-chip">ADMIN</span></div>
+        <p class="muted">Add a question, four options, select the correct option and publish it to this week’s quiz.</p>
+        <form id="question-form" class="question-form">
+          <label>Question<textarea id="q-text" required rows="3" placeholder="Write your question…"></textarea></label>
+          <div class="option-grid">
+            <label>Option A<input id="opt-a" required placeholder="Option A" /></label>
+            <label>Option B<input id="opt-b" required placeholder="Option B" /></label>
+            <label>Option C<input id="opt-c" required placeholder="Option C" /></label>
+            <label>Option D<input id="opt-d" required placeholder="Option D" /></label>
+          </div>
+          <div class="form-row"><label>Correct option<select id="correct-opt"><option value="0">A</option><option value="1">B</option><option value="2">C</option><option value="3">D</option></select></label><label>Points per correct answer<input id="points" type="number" min="1" max="100" value="1" required /></label></div>
+          <button class="btn btn-primary" type="submit">Add question <span>＋</span></button><p id="admin-message" class="notice"></p>
+        </form>
+        <div id="admin-question-list"></div>
+      </section>
+    </section>
+    <footer><span>COLLEGE QUIZ COMPETITION</span><span>Learn together. Lead with knowledge.</span></footer>
+  </main>
+  <div id="toast" class="toast" role="status"></div>
+  <script type="module" src="/src.js"></script>
+</body>
+</html>
