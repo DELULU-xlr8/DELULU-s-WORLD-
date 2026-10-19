@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 // 1) Create a Supabase project and paste its public Project URL + anon/publishable key below.
 // Never put a service_role key in this file.
 const SUPABASE_URL = 'https://imhxiljqhnenhkgbedxj.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_sDCXNbfAhU4MFaZc18YTIA_f3glPpf';
+const SUPABASE_ANON_KEY = 'sb_publishable_sDCXNbfAhU4MFaZc18YTIA_f3glPpf-';
 const configured = SUPABASE_URL.startsWith('https://') && !SUPABASE_URL.includes('PASTE_') && !SUPABASE_ANON_KEY.includes('PASTE_');
 const supabase = configured ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
