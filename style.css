@@ -992,3 +992,56 @@ footer span:first-child {
     animation: none;
   }
 }
+
+
+/* Mobile overflow fix */
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.shell,
+.topbar,
+.dashboard-grid,
+.panel,
+.hero,
+.auth-panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+img,
+video,
+iframe,
+canvas,
+table {
+  max-width: 100%;
+}
+
+@media (max-width: 480px) {
+  .shell {
+    width: calc(100% - 28px);
+  }
+
+  .topbar {
+    width: calc(100% - 28px);
+  }
+
+  .brand {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .top-actions {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .dashboard-grid > *,
+  .option-grid > *,
+  .form-row > * {
+    min-width: 0;
+  }
+}
