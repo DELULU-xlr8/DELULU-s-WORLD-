@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.netlify.tihucollegequiz.twa",
+        "sha256_cert_fingerprints": ["EA:CA:F3:C6:0D:7E:90:EF:4F:B2:D0:B8:7F:7A:B2:DC:19:74:F2:75:9A:AF:D8:1C:BD:2F:0A:1C:6B:CA:FE:0D"]
+      }
+    }]
