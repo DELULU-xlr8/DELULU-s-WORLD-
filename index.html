@@ -1,260 +1,256 @@
 
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0b0618" />
-  <meta name="description" content="Enter DELULU'S WORLD — challenge your mind, test your knowledge, and rise on the leaderboard." />
-  <title>DELULU'S WORLD | Quiz Arena</title>
-  <link rel="stylesheet" href="./style.css" />
-</head>
-<body>
-  <div class="glow glow-a"></div>
-  <div class="glow glow-b"></div>
+  <meta name="theme-color" content="#100b20" />
+  <meta
+    name="description"
+    content="Tihu College Quiz — weekly quizzes, student rankings and archived winners."
+  />
 
-  <header class="topbar">
-    <a class="brand" href="#" aria-label="DELULU'S WORLD home">
-      <span class="brand-mark">DW</span>
-      <span>DELULU'S WORLD <small>QUIZ ARENA</small></span>
+  <title>Tihu College Quiz</title>
+
+  <link rel="stylesheet" href="./style.css" />
+
+  <script type="module" src="./src.js"></script>
+</head>
+
+<body>
+  <header class="site-header">
+    <a class="brand" href="./" aria-label="Tihu College Quiz home">
+      <span class="brand-icon">TQ</span>
+      <span>
+        <strong>Tihu College Quiz</strong>
+        <small>Learn. Compete. Lead.</small>
+      </span>
     </a>
-    <div class="top-actions">
-      <span id="user-label" class="muted"></span>
-      <button id="logout-btn" class="btn btn-ghost hidden">Log out</button>
-    </div>
+
+    <button id="logout-btn" class="btn btn-outline hidden" type="button">
+      Log out
+    </button>
   </header>
 
-  <main class="shell">
+  <main class="container">
     <section class="hero">
-      <div class="eyebrow">
-        <span class="pulse"></span>
-        THE ULTIMATE KNOWLEDGE ARENA
-      </div>
-
-      <h1>
-        Welcome to<br />
-        <span>DELULU'S WORLD.</span>
-      </h1>
-
-      <p>
-        Challenge your mind. Test your knowledge.
-        Earn points and rise to the top of the leaderboard.
+      <p class="eyebrow">YOUR NEXT BIG BRAIN MOMENT STARTS HERE</p>
+      <h1>Knowledge is your superpower.</h1>
+      <p class="hero-description">
+        Challenge yourself, earn points and climb the weekly leaderboard.
       </p>
-
-      <div class="hero-stats">
-        <div>
-          <b>01</b>
-          <span>Think smart</span>
-        </div>
-        <div>
-          <b>02</b>
-          <span>Earn points</span>
-        </div>
-        <div>
-          <b>03</b>
-          <span>Own the board</span>
-        </div>
-      </div>
-
-      <div class="hero-note">
-        <span class="pulse"></span>
-        YOUR NEXT BIG BRAIN MOMENT STARTS HERE
-      </div>
     </section>
 
+    <!-- LOGIN AND SIGN-UP -->
     <section id="auth-panel" class="panel auth-panel">
-      <div class="panel-heading">
-        <div>
-          <div class="eyebrow">YOUR JOURNEY STARTS HERE</div>
-          <h2>Your quiz account</h2>
-        </div>
-        <span class="icon-bubble">↗</span>
-      </div>
+      <p class="eyebrow">YOUR JOURNEY STARTS HERE</p>
+      <h2>Your quiz account</h2>
 
-      <div class="tabs">
-        <button id="login-tab" class="tab active" type="button">Log in</button>
-        <button id="signup-tab" class="tab" type="button">Create account</button>
+      <div class="auth-tabs" role="group" aria-label="Account options">
+        <button
+          id="login-tab"
+          class="btn btn-primary"
+          type="button"
+          aria-pressed="true"
+        >
+          Log in
+        </button>
+
+        <button
+          id="signup-tab"
+          class="btn btn-secondary"
+          type="button"
+          aria-pressed="false"
+        >
+          Create account
+        </button>
       </div>
 
       <form id="auth-form">
-        <label id="name-wrap" class="hidden">
-          Full name
+        <label for="auth-email">Email address</label>
+        <input
+          id="auth-email"
+          name="email"
+          type="email"
+          placeholder="you@example.com"
+          autocomplete="email"
+          required
+        />
+
+        <label for="auth-password">Password</label>
+        <input
+          id="auth-password"
+          name="password"
+          type="password"
+          placeholder="At least 6 characters"
+          minlength="6"
+          autocomplete="current-password"
+          required
+        />
+
+        <div id="name-field" class="hidden">
+          <label for="auth-name">Your name</label>
           <input
-            id="full-name"
-            autocomplete="name"
+            id="auth-name"
+            name="full_name"
+            type="text"
             placeholder="Enter your name"
+            autocomplete="name"
           />
-        </label>
+        </div>
 
-        <label>
-          Email address
-          <input
-            id="email"
-            type="email"
-            autocomplete="email"
-            required
-            placeholder="you@example.com"
-          />
-        </label>
-
-        <label>
-          Password
-          <input
-            id="password"
-            type="password"
-            autocomplete="current-password"
-            minlength="6"
-            required
-            placeholder="At least 6 characters"
-          />
-        </label>
-
-        <button id="auth-submit" class="btn btn-primary full" type="submit">
-          Log in <span>→</span>
+        <button id="auth-submit" class="btn btn-primary btn-large" type="submit">
+          Log in →
         </button>
 
-        <p id="auth-message" class="notice" role="status"></p>
+        <p id="auth-message" class="message" role="status" aria-live="polite"></p>
       </form>
 
-      <p class="tiny">
+      <p class="muted">
         One account per participant. Your weekly points are saved to your account.
       </p>
     </section>
 
+    <!-- MAIN STUDENT DASHBOARD -->
     <section id="app-panel" class="hidden">
-      <div class="section-title">
+      <div class="welcome-row">
         <div>
-          <div class="eyebrow">YOUR PERSONAL SPACE</div>
-          <h2>Ready for the challenge?</h2>
+          <p class="eyebrow">STUDENT DASHBOARD</p>
+          <h2>Welcome back!</h2>
+          <p id="user-label" class="muted">Student</p>
         </div>
-        <span id="week-label" class="week-chip">This week</span>
       </div>
 
-      <div class="dashboard-grid">
-        <section class="panel quiz-panel">
-          <div class="panel-heading">
-            <div>
-              <div class="eyebrow">TEST YOUR KNOWLEDGE</div>
-              <h2>Weekly quiz</h2>
-            </div>
-            <span class="icon-bubble">✦</span>
-          </div>
+      <nav class="dashboard-nav" aria-label="Dashboard sections">
+        <a href="#quiz-section">Weekly quiz</a>
+        <a href="#leaderboard-section">Leaderboard</a>
+        <a href="#archive-section">Past winners</a>
+      </nav>
 
-          <div id="quiz-content">
-            <div class="empty">
-              <div class="empty-icon">◎</div>
-              <h3>Questions are on the way</h3>
-              <p>
-                The quiz administrator hasn’t published this week’s questions yet.
-                Check back soon!
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel leaderboard-panel">
-          <div class="panel-heading">
-            <div>
-              <div class="eyebrow">WHO'S LEADING?</div>
-              <h2>Leaderboard</h2>
-            </div>
-            <span class="live-chip"><i></i> LIVE</span>
-          </div>
-
-          <div id="leaderboard">
-            <div class="loading">Loading weekly scores…</div>
-          </div>
-
-          <div class="panel-footer">
-            Rankings refresh when you reload the page.
-          </div>
-        </section>
-      </div>
-
-      <section class="panel archive-panel">
-        <div class="panel-heading">
-          <div>
-            <div class="eyebrow">HALL OF FAME</div>
-            <h2>Weekly winners archive</h2>
-          </div>
-          <span class="icon-bubble">♜</span>
-        </div>
-
-        <div id="archive">
-          <p class="muted">
-            No archived weeks yet. Winners appear after a week is closed and archived.
-          </p>
-        </div>
-      </section>
-
-      <section id="admin-panel" class="panel admin-panel hidden">
-        <div class="panel-heading">
-          <div>
-            <div class="eyebrow">CONTROL CENTER</div>
-            <h2>Manage questions</h2>
-          </div>
-          <span class="admin-chip">ADMIN</span>
-        </div>
-
-        <p class="muted">
-          Add a question, four options, select the correct option and publish it
-          to this week’s quiz.
+      <!-- WEEKLY QUIZ -->
+      <section id="quiz-section" class="panel">
+        <p class="eyebrow">THIS WEEK'S CHALLENGE</p>
+        <h2>Weekly Quiz</h2>
+        <p id="quiz-status" class="muted">
+          Your questions will appear here.
         </p>
 
-        <form id="question-form" class="question-form">
-          <label>
-            Question
-            <textarea
-              id="q-text"
-              required
-              rows="3"
-              placeholder="Write your question…"
-            ></textarea>
-          </label>
+        <form id="quiz-form">
+          <div id="quiz-questions"></div>
 
-          <div class="option-grid">
-            <label>Option A<input id="opt-a" required placeholder="Option A" /></label>
-            <label>Option B<input id="opt-b" required placeholder="Option B" /></label>
-            <label>Option C<input id="opt-c" required placeholder="Option C" /></label>
-            <label>Option D<input id="opt-d" required placeholder="Option D" /></label>
-          </div>
-
-          <div class="form-row">
-            <label>
-              Correct option
-              <select id="correct-opt">
-                <option value="0">A</option>
-                <option value="1">B</option>
-                <option value="2">C</option>
-                <option value="3">D</option>
-              </select>
-            </label>
-
-            <label>
-              Points per correct answer
-              <input id="points" type="number" min="1" max="100" value="1" required />
-            </label>
-          </div>
-
-          <button class="btn btn-primary" type="submit">
-            Add question <span>＋</span>
+          <button
+            id="submit-quiz-btn"
+            class="btn btn-primary btn-large"
+            type="submit"
+          >
+            Submit answers
           </button>
-
-          <p id="admin-message" class="notice"></p>
         </form>
 
-        <div id="admin-question-list"></div>
+        <p id="quiz-message" class="message" role="status" aria-live="polite"></p>
+      </section>
+
+      <!-- LEADERBOARD -->
+      <section id="leaderboard-section" class="panel">
+        <p class="eyebrow">THE TOP PERFORMERS</p>
+        <h2>Weekly Leaderboard</h2>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Rank</th>
+                <th scope="col">Student</th>
+                <th scope="col">Points</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboard-body">
+              <tr>
+                <td colspan="3">Leaderboard will appear here.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p id="leaderboard-message" class="message" role="status"></p>
+      </section>
+
+      <!-- ARCHIVED WINNERS -->
+      <section id="archive-section" class="panel">
+        <p class="eyebrow">HALL OF ACHIEVEMENT</p>
+        <h2>Past Weekly Winners</h2>
+        <div id="archive-list">
+          <p class="muted">Past winners will appear here.</p>
+        </div>
+      </section>
+
+      <!-- ADMIN AREA -->
+      <section id="admin-panel" class="panel hidden">
+        <p class="eyebrow">ADMINISTRATION</p>
+        <h2>Manage Questions</h2>
+        <p class="muted">
+          Add quiz questions and manage the weekly challenge.
+        </p>
+
+        <form id="admin-question-form">
+          <label for="question-text">Question</label>
+          <textarea
+            id="question-text"
+            name="question_text"
+            rows="3"
+            placeholder="Enter your question"
+            required
+          ></textarea>
+
+          <label for="option-a">Option A</label>
+          <input id="option-a" name="option_a" type="text" required />
+
+          <label for="option-b">Option B</label>
+          <input id="option-b" name="option_b" type="text" required />
+
+          <label for="option-c">Option C</label>
+          <input id="option-c" name="option_c" type="text" required />
+
+          <label for="option-d">Option D</label>
+          <input id="option-d" name="option_d" type="text" required />
+
+          <label for="correct-option">Correct option</label>
+          <select id="correct-option" name="correct_option" required>
+            <option value="">Select the correct option</option>
+            <option value="A">Option A</option>
+            <option value="B">Option B</option>
+            <option value="C">Option C</option>
+            <option value="D">Option D</option>
+          </select>
+
+          <label for="question-points">Points</label>
+          <input
+            id="question-points"
+            name="points"
+            type="number"
+            min="1"
+            value="10"
+            required
+          />
+
+          <button class="btn btn-primary btn-large" type="submit">
+            Add question
+          </button>
+        </form>
+
+        <p id="admin-message" class="message" role="status" aria-live="polite"></p>
+
+        <h3>Existing questions</h3>
+        <div id="admin-question-list">
+          <p class="muted">Questions will appear here.</p>
+        </div>
       </section>
     </section>
-
-    <footer>
-      <span>DELULU'S WORLD · QUIZ ARENA</span>
-      <span>Learn together. Lead with knowledge.</span>
-    </footer>
   </main>
 
-  <div id="toast" class="toast" role="status"></div>
-
-  <script type="module" src="/src.js"></script>
+  <footer class="site-footer">
+    <p><strong>TIHU COLLEGE QUIZ</strong></p>
+    <p>Learn together. Lead with knowledge.</p>
+  </footer>
 </body>
 </html>
