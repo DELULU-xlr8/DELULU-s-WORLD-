@@ -1,0 +1,25 @@
+
+{
+  "id": "/",
+  "name": "Tihu College Quiz",
+  "short_name": "Tihu Quiz",
+  "description": "Tihu College Quiz — weekly quizzes, competitive practice, scores and leaderboard for students.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b1020",
+  "theme_color": "#6c5ce7",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
