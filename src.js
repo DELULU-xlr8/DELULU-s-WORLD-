@@ -2,7 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = 'https://imhxiljqhnenhkgbedxj.supabase.co';
-const SUPABASE_ANON_KEY = 'PASTE_YOUR_EXISTING_PUBLIC_KEY_HERE';
+const SUPABASE_ANON_KEY = 'sb_publishable_sDCXNbfAhU4MFaZc18YTIA_f3glPpf-';
 
 const configured =
   SUPABASE_URL.startsWith('https://') &&
