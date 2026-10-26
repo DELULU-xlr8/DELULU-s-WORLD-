@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = 'https://imhxiljqhnenhkgbedxj.supabase.co';
@@ -22,19 +21,20 @@ const $ = id => document.getElementById(id);
 
 let mode = 'login';
 let user = null;
-let sessionLoading = false;
 
 function say(id, message, error = false) {
   const el = $(id);
   if (!el) return;
-
   el.textContent = message;
-  el.style.color = error ? '#ffaaaa' : 'var(--accent)';
+  el.style.color = error ? '#ffaaaa' : 'var(--accent, #4caf50)';
 }
 
+// Dono methods use karenge taaki CSS missing hone par bhi panel hide ho jaye
 function show(id, visible = true) {
   const el = $(id);
-  if (el) el.classList.toggle('hidden', !visible);
+  if (!el) return;
+  el.classList.toggle('hidden', !visible);
+  el.style.display = visible ? '' : 'none';
 }
 
 function toast(message) {
@@ -43,18 +43,47 @@ function toast(message) {
     console.log(message);
     return;
   }
-
   el.textContent = message;
   el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 2600);
 }
 
 function renderSignedOut() {
+  user = null;
   show('auth-panel', true);
   show('app-panel', false);
   show('logout-btn', false);
 
   if ($('user-label')) $('user-label').textContent = '';
+}
+
+async function renderSignedIn(currentUser) {
+  if (!currentUser) {
+    renderSignedOut();
+    return;
+  }
+
+  user = currentUser;
+
+  // Login panel hide aur App panel show
+  show('auth-panel', false);
+  show('app-panel', true);
+  show('logout-btn', true);
+
+  if ($('user-label')) {
+    $('user-label').textContent =
+      user.user_metadata?.full_name || user.email || 'Student';
+  }
+
+  // Safe check agar function defined na ho toh crash na ho
+  if (typeof loadRoleAndData === 'function') {
+    try {
+      await loadRoleAndData();
+    } catch (error) {
+      console.error('Dashboard loading error:', error);
+      toast('Logged in, but some dashboard data failed to load.');
+    }
+  }
 }
 
 function setMode(next) {
@@ -87,11 +116,7 @@ $('auth-form')?.addEventListener('submit', async event => {
   event.preventDefault();
 
   if (!supabase) {
-    say(
-      'auth-message',
-      'Supabase public key missing. Add your existing public key in src.js.',
-      true
-    );
+    say('auth-message', 'Supabase credentials missing.', true);
     return;
   }
 
@@ -101,8 +126,8 @@ $('auth-form')?.addEventListener('submit', async event => {
   say('auth-message', 'Please wait…');
 
   try {
-    const email = $('email').value.trim();
-    const password = $('password').value;
+    const email = $('email')?.value.trim();
+    const password = $('password')?.value;
     const name = $('full-name')?.value.trim() || '';
 
     if (!email || !password) {
@@ -110,15 +135,13 @@ $('auth-form')?.addEventListener('submit', async event => {
       return;
     }
 
-    let result;
-
     if (mode === 'signup') {
       if (!name) {
         say('auth-message', 'Enter your full name.', true);
         return;
       }
 
-      result = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -127,134 +150,53 @@ $('auth-form')?.addEventListener('submit', async event => {
         }
       });
 
-      if (result.error) throw result.error;
+      if (error) throw error;
 
-      if (!result.data.session) {
-        say(
-          'auth-message',
-          'Account created. Confirm your email, then log in.'
-        );
+      if (!data.session) {
+        say('auth-message', 'Account created! Confirm your email, then log in.');
         return;
       }
     } else {
-      result = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
-      if (result.error) throw result.error;
+      if (error) throw error;
     }
-
-    if (!result.data.session) {
-      say(
-        'auth-message',
-        'Login session was not created. Check your Supabase settings.',
-        true
-      );
-      return;
-    }
-
-    user = result.data.session.user;
 
     say('auth-message', '');
     toast('Login successful');
-
-    await renderSignedIn(user);
+    // Screen switch Supabase ka onAuthStateChange listener khud handle karega
   } catch (error) {
     console.error('Authentication error:', error);
-    say(
-      'auth-message',
-      error.message || 'Login failed. Please try again.',
-      true
-    );
+    say('auth-message', error.message || 'Login failed. Please try again.', true);
   } finally {
     if (button) button.disabled = false;
   }
 });
 
-async function renderSignedIn(currentUser) {
-  if (!currentUser) {
-    renderSignedOut();
-    return;
-  }
-
-  user = currentUser;
-
-  show('auth-panel', false);
-  show('app-panel', true);
-  show('logout-btn', true);
-
-  if ($('user-label')) {
-    $('user-label').textContent =
-      user.user_metadata?.full_name || user.email || 'Student';
-  }
-
-  try {
-    await loadRoleAndData();
-  } catch (error) {
-    console.error('Dashboard loading error:', error);
-    toast('Logged in, but some dashboard data failed to load.');
-  }
-}
-
-async function loadSession() {
-  if (!supabase || sessionLoading) return;
-
-  sessionLoading = true;
-
-  try {
-    const { data, error } = await supabase.auth.getSession();
-
-    if (error) throw error;
-
-    if (!data.session?.user) {
-      user = null;
-      renderSignedOut();
-      return;
-    }
-
-    await renderSignedIn(data.session.user);
-  } catch (error) {
-    console.error('Session error:', error);
-    say('auth-message', error.message || 'Could not restore login.', true);
-    renderSignedOut();
-  } finally {
-    sessionLoading = false;
-  }
-}
-
 $('logout-btn')?.addEventListener('click', async () => {
   if (!supabase) return;
 
   const { error } = await supabase.auth.signOut();
-
   if (error) {
     toast(error.message);
     return;
   }
 
-  user = null;
-  renderSignedOut();
   toast('Logged out');
 });
 
-if (!configured) {
-  renderSignedOut();
-  say(
-    'auth-message',
-    'Add your existing Supabase public key in src.js before logging in.',
-    true
-  );
-} else {
+// Auth State Listener: Login, Logout aur Refresh teeno automatically handle honge
+if (supabase) {
   supabase.auth.onAuthStateChange((event, session) => {
-    if (event === 'SIGNED_OUT') {
-      user = null;
+    if (session?.user) {
+      renderSignedIn(session.user);
+    } else {
       renderSignedOut();
     }
-
-    // SIGNED_IN is handled by the login form.
-    // INITIAL_SESSION is handled by loadSession().
   });
-
-  loadSession();
+} else {
+  renderSignedOut();
 }
