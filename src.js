@@ -1,4 +1,3 @@
-
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = "https://imhxiljqhnenhkgbedxj.supabase.co";
@@ -78,14 +77,20 @@ function setAuthMode(mode) {
 
   show("name-field", signup);
 
-  if ($("auth-name")) $("auth-name").required = signup;
+  if ($("auth-name")) {
+    $("auth-name").required = signup;
+  }
 
   if ($("auth-password")) {
     $("auth-password").autocomplete =
       signup ? "new-password" : "current-password";
   }
 
-  setButton("auth-submit", signup ? "Create account →" : "Log in →");
+  setButton(
+    "auth-submit",
+    signup ? "Create account →" : "Log in →"
+  );
+
   message("auth-message", "");
 }
 
@@ -135,26 +140,26 @@ function getOptionList(options) {
   return [];
 }
 
-/*
- * Convert option labels/keys to the integer format used by
- * questions.correct_option:
- * A = 1, B = 2, C = 3, D = 4.
- */
-function getOptionNumber(option, index) {
-  const raw =
-    typeof option === "object"
-      ? String(option.key ?? option.value ?? "").trim().toUpperCase()
-      : "";
+// Correct-answer and selected-answer convention:
+// A = 0, B = 1, C = 2, D = 3.
+function getOptionIndex(option, index) {
+  const raw = typeof option === "object"
+    ? String(option.key ?? option.value ?? "").trim().toUpperCase()
+    : "";
 
   if (/^[A-D]$/.test(raw)) {
-    return raw.charCodeAt(0) - 64;
+    return raw.charCodeAt(0) - 65;
   }
 
-  if (/^[1-4]$/.test(raw)) {
+  if (/^[0-3]$/.test(raw)) {
     return Number(raw);
   }
 
-  return index + 1;
+  if (/^[1-4]$/.test(raw)) {
+    return Number(raw) - 1;
+  }
+
+  return index;
 }
 
 async function loadQuestions() {
@@ -177,9 +182,8 @@ async function loadQuestions() {
     .limit(50);
 
   if (error) {
-    if ($("quiz-status")) {
-      $("quiz-status").textContent = "Questions could not be loaded.";
-    }
+    $("quiz-status") &&
+      ($("quiz-status").textContent = "Questions could not be loaded.");
 
     message("quiz-message", "Question loading error: " + error.message, true);
     return;
@@ -218,24 +222,18 @@ async function loadQuestions() {
       card.append(warning);
     } else {
       options.forEach((option, optionIndex) => {
-        const optionNumber = getOptionNumber(option, optionIndex);
+        const optionIndexValue = getOptionIndex(option, optionIndex);
 
-        const labelText =
-          typeof option === "object"
-            ? String(
-                option.text ??
-                option.label ??
-                option.value ??
-                ""
-              )
-            : String(option);
+        const labelText = typeof option === "object"
+          ? String(option.text ?? option.label ?? option.value ?? "")
+          : String(option);
 
         const label = document.createElement("label");
         const radio = document.createElement("input");
 
         radio.type = "radio";
         radio.name = `question-${question.id}`;
-        radio.value = String(optionNumber);
+        radio.value = String(optionIndexValue);
         radio.required = optionIndex === 0;
 
         const text = document.createElement("span");
@@ -454,9 +452,7 @@ async function handleAuthSubmit(event) {
         password,
         options: {
           emailRedirectTo: SITE_URL,
-          data: {
-            full_name: fullName || ""
-          }
+          data: { full_name: fullName || "" }
         }
       });
 
@@ -473,10 +469,7 @@ async function handleAuthSubmit(event) {
         );
       }
     } else {
-      result = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
+      result = await supabase.auth.signInWithPassword({ email, password });
 
       if (result.error) throw result.error;
 
@@ -547,9 +540,13 @@ async function handleQuizSubmit(event) {
     const selectedOption = Number(selected.value);
 
     if (!Number.isInteger(selectedOption) ||
-        selectedOption < 1 ||
-        selectedOption > 4) {
-      message("quiz-message", "Invalid answer option. Please reload the quiz.", true);
+        selectedOption < 0 ||
+        selectedOption > 3) {
+      message(
+        "quiz-message",
+        "Invalid answer option. Please reload the quiz.",
+        true
+      );
       return;
     }
 
@@ -563,23 +560,29 @@ async function handleQuizSubmit(event) {
   if (button) button.disabled = true;
 
   try {
+    // Keep this argument format consistent with the SQL function.
+    // This call assumes submit_quiz(p_week_start date, p_answers jsonb).
+    const weekStart = currentQuestions[0]?.week_start;
+
+    if (!weekStart) {
+      message("quiz-message", "The quiz week could not be identified.", true);
+      return;
+    }
+
     const { data, error } = await supabase.rpc("submit_quiz", {
-      answers
+      p_week_start: weekStart,
+      p_answers: answers
     });
 
     if (error) {
-      message(
-        "quiz-message",
-        "Submission failed: " + error.message +
-        ". Check the submit_quiz database function's expected argument format.",
-        true
-      );
+      message("quiz-message", "Submission failed: " + error.message, true);
       return;
     }
 
     message(
       "quiz-message",
-      data?.message || "Answers submitted successfully."
+      data?.message ||
+      `Answers submitted. Points earned: ${data?.points_earned ?? 0}`
     );
 
     await loadLeaderboard();
@@ -601,10 +604,15 @@ async function handleAdminQuestionSubmit(event) {
   const questionText = $("question-text")?.value.trim();
   const points = Number($("question-points")?.value || 10);
 
-  const correctOptionNumber =
-    ["A", "B", "C", "D"].indexOf(
-      String($("correct-option")?.value ?? "").trim().toUpperCase()
-    ) + 1;
+  // Correct-option dropdown must have values A, B, C, D.
+  const selectedCorrectOption = String(
+    $("correct-option")?.value ?? ""
+  ).trim().toUpperCase();
+
+  // Database integer convention: A=0, B=1, C=2, D=3.
+  const correctOptionIndex = ["A", "B", "C", "D"].indexOf(
+    selectedCorrectOption
+  );
 
   const options = [
     { key: "A", text: $("option-a")?.value.trim() || "" },
@@ -618,27 +626,29 @@ async function handleAdminQuestionSubmit(event) {
     return;
   }
 
-  if (options.some((option) => !option.text)) {
+  if (options.some(option => !option.text)) {
     message("admin-message", "Please fill in all four options.", true);
     return;
   }
 
   if (!Number.isInteger(points) || points < 0) {
-    message("admin-message", "Points must be a valid non-negative integer.", true);
+    message("admin-message", "Points must be a non-negative integer.", true);
     return;
   }
 
-  if (correctOptionNumber < 1 || correctOptionNumber > 4) {
-    message("admin-message", "Select correct answer A, B, C, or D.", true);
+  if (correctOptionIndex === -1) {
+    message("admin-message", "Select the correct answer A, B, C, or D.", true);
     return;
   }
 
-  // Calculate Monday in India Standard Time (UTC+5:30).
+  // Calculate Monday in India Standard Time.
   const now = new Date();
   const indiaDate = new Date(now.getTime() + 330 * 60 * 1000);
   const weekday = indiaDate.getUTCDay();
   const mondayOffset = (weekday + 6) % 7;
+
   indiaDate.setUTCDate(indiaDate.getUTCDate() - mondayOffset);
+
   const weekStart = indiaDate.toISOString().slice(0, 10);
 
   const submitButton = $("admin-question-form")?.querySelector(
@@ -649,29 +659,31 @@ async function handleAdminQuestionSubmit(event) {
   message("admin-message", "Saving question…");
 
   try {
-    const { error } = await supabase.from("questions").insert({
+    const questionToSave = {
       question_text: questionText,
       options,
-      correct_option: correctOptionNumber,
+      correct_option: Number(correctOptionIndex),
       points,
       week_start: weekStart,
       created_by: currentUser.id
-    });
+    };
+
+    const { error } = await supabase
+      .from("questions")
+      .insert(questionToSave);
 
     if (error) {
-      message(
-        "admin-message",
-        "Could not save question: " + error.message +
-        ". Check the questions table columns and RLS policies.",
-        true
-      );
+      console.error("Question save error:", error);
+      message("admin-message", "Could not save question: " + error.message, true);
       return;
     }
 
     message("admin-message", "Question added successfully.");
     $("admin-question-form")?.reset();
+
     await loadAdminQuestions();
   } catch (error) {
+    console.error("Question save error:", error);
     message(
       "admin-message",
       "Could not save question: " + (error.message || "Unknown error"),
@@ -688,6 +700,7 @@ function initialise() {
   $("auth-form")?.addEventListener("submit", handleAuthSubmit);
   $("logout-btn")?.addEventListener("click", handleLogout);
   $("quiz-form")?.addEventListener("submit", handleQuizSubmit);
+
   $("admin-question-form")?.addEventListener(
     "submit",
     handleAdminQuestionSubmit
