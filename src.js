@@ -2,13 +2,13 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Supabase public credentials
-const SUPABASE_URL = 'PASTE_YOUR_SUPABASE_PROJECT_URL_HERE';
-const SUPABASE_ANON_KEY = 'PASTE_YOUR_SUPABASE_ANON_OR_PUBLISHABLE_KEY_HERE';
+const SUPABASE_URL = 'https://imhxiljqhnenhkgbedxj.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_sDCXNbfAhU4MFaZc18YTIA_f3glPpf';
 
 const configured =
   SUPABASE_URL.startsWith('https://') &&
-  !SUPABASE_URL.includes('PASTE_') &&
-  !SUPABASE_ANON_KEY.includes('PASTE_');
+  !SUPABASE_URL.includes('https://imhxiljqhnenhkgbedxj.supabase.co') &&
+  !SUPABASE_ANON_KEY.includes('sb_publishable_sDCXNbfAhU4MFaZc18YTIA_f3glPpf');
 
 const supabase = configured
   ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
