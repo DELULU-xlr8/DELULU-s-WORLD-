@@ -23,7 +23,6 @@ function show(id, visible) {
 function message(id, text, isError = false) {
   const element = $(id);
   if (!element) return;
-
   element.textContent = text;
   element.style.color = isError ? "#fda4af" : "#86efac";
 }
@@ -31,19 +30,8 @@ function message(id, text, isError = false) {
 function setButton(id, text, disabled = false) {
   const button = $(id);
   if (!button) return;
-
   button.textContent = text;
   button.disabled = disabled;
-}
-
-function escapeHTML(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  })[character]);
 }
 
 function renderSignedOut() {
@@ -74,7 +62,6 @@ function renderSignedIn(user) {
 
 function setAuthMode(mode) {
   authMode = mode === "signup" ? "signup" : "login";
-
   const signup = authMode === "signup";
 
   if ($("login-tab")) {
@@ -91,9 +78,7 @@ function setAuthMode(mode) {
 
   show("name-field", signup);
 
-  if ($("auth-name")) {
-    $("auth-name").required = signup;
-  }
+  if ($("auth-name")) $("auth-name").required = signup;
 
   if ($("auth-password")) {
     $("auth-password").autocomplete =
@@ -106,6 +91,11 @@ function setAuthMode(mode) {
 
 async function loadRole() {
   currentRole = "user";
+
+  if (!currentUser) {
+    show("admin-panel", false);
+    return;
+  }
 
   const { data, error } = await supabase
     .from("profiles")
@@ -131,7 +121,7 @@ function getOptionList(options) {
       const parsed = JSON.parse(options);
       if (Array.isArray(parsed)) return parsed;
     } catch {
-      // Show a useful message if options are stored in another format.
+      // Invalid JSON.
     }
   }
 
@@ -145,6 +135,28 @@ function getOptionList(options) {
   return [];
 }
 
+/*
+ * Convert option labels/keys to the integer format used by
+ * questions.correct_option:
+ * A = 1, B = 2, C = 3, D = 4.
+ */
+function getOptionNumber(option, index) {
+  const raw =
+    typeof option === "object"
+      ? String(option.key ?? option.value ?? "").trim().toUpperCase()
+      : "";
+
+  if (/^[A-D]$/.test(raw)) {
+    return raw.charCodeAt(0) - 64;
+  }
+
+  if (/^[1-4]$/.test(raw)) {
+    return Number(raw);
+  }
+
+  return index + 1;
+}
+
 async function loadQuestions() {
   const container = $("quiz-questions");
   if (!container) return;
@@ -153,6 +165,7 @@ async function loadQuestions() {
   currentQuestions = [];
 
   message("quiz-message", "");
+
   if ($("quiz-status")) {
     $("quiz-status").textContent = "Loading this week's questions…";
   }
@@ -168,11 +181,7 @@ async function loadQuestions() {
       $("quiz-status").textContent = "Questions could not be loaded.";
     }
 
-    message(
-      "quiz-message",
-      "Question loading error: " + error.message,
-      true
-    );
+    message("quiz-message", "Question loading error: " + error.message, true);
     return;
   }
 
@@ -209,14 +218,16 @@ async function loadQuestions() {
       card.append(warning);
     } else {
       options.forEach((option, optionIndex) => {
-        const value =
-          typeof option === "object"
-            ? String(option.key ?? option.value ?? optionIndex)
-            : String(optionIndex);
+        const optionNumber = getOptionNumber(option, optionIndex);
 
         const labelText =
           typeof option === "object"
-            ? String(option.text ?? option.label ?? option.value ?? "")
+            ? String(
+                option.text ??
+                option.label ??
+                option.value ??
+                ""
+              )
             : String(option);
 
         const label = document.createElement("label");
@@ -224,7 +235,7 @@ async function loadQuestions() {
 
         radio.type = "radio";
         radio.name = `question-${question.id}`;
-        radio.value = value;
+        radio.value = String(optionNumber);
         radio.required = optionIndex === 0;
 
         const text = document.createElement("span");
@@ -356,16 +367,16 @@ async function loadAdminQuestions() {
 
   if (error) {
     const item = document.createElement("p");
-    item.textContent = "Admin question loading error: " + error.message;
     item.className = "muted";
+    item.textContent = "Admin question loading error: " + error.message;
     container.append(item);
     return;
   }
 
   if (!data?.length) {
     const item = document.createElement("p");
-    item.textContent = "No questions found in the admin table.";
     item.className = "muted";
+    item.textContent = "No questions found in the admin table.";
     container.append(item);
     return;
   }
@@ -533,9 +544,18 @@ async function handleQuizSubmit(event) {
       return;
     }
 
+    const selectedOption = Number(selected.value);
+
+    if (!Number.isInteger(selectedOption) ||
+        selectedOption < 1 ||
+        selectedOption > 4) {
+      message("quiz-message", "Invalid answer option. Please reload the quiz.", true);
+      return;
+    }
+
     answers.push({
       question_id: question.id,
-      selected_option: selected.value
+      selected_option: selectedOption
     });
   }
 
@@ -551,7 +571,7 @@ async function handleQuizSubmit(event) {
       message(
         "quiz-message",
         "Submission failed: " + error.message +
-        ". The submit_quiz database function may need different arguments.",
+        ". Check the submit_quiz database function's expected argument format.",
         true
       );
       return;
@@ -573,52 +593,93 @@ async function handleQuizSubmit(event) {
 async function handleAdminQuestionSubmit(event) {
   event.preventDefault();
 
-  if (currentRole !== "admin") {
+  if (!currentUser || currentRole !== "admin") {
     message("admin-message", "Admin access is required.", true);
     return;
   }
 
   const questionText = $("question-text")?.value.trim();
   const points = Number($("question-points")?.value || 10);
-  const correctOption = $("correct-option")?.value;
+
+  const correctOptionNumber =
+    ["A", "B", "C", "D"].indexOf(
+      String($("correct-option")?.value ?? "").trim().toUpperCase()
+    ) + 1;
 
   const options = [
-    { key: "A", text: $("option-a")?.value.trim() },
-    { key: "B", text: $("option-b")?.value.trim() },
-    { key: "C", text: $("option-c")?.value.trim() },
-    { key: "D", text: $("option-d")?.value.trim() }
+    { key: "A", text: $("option-a")?.value.trim() || "" },
+    { key: "B", text: $("option-b")?.value.trim() || "" },
+    { key: "C", text: $("option-c")?.value.trim() || "" },
+    { key: "D", text: $("option-d")?.value.trim() || "" }
   ];
 
-  const today = new Date();
-  const day = today.getUTCDay();
-  const mondayOffset = (day + 6) % 7;
-  today.setUTCDate(today.getUTCDate() - mondayOffset);
-  const weekStart = today.toISOString().slice(0, 10);
-
-  message("admin-message", "Saving question…");
-
-  const { error } = await supabase.from("questions").insert({
-    question_text: questionText,
-    options,
-    correct_option: correctOption,
-    points,
-    week_start: weekStart,
-    created_by: currentUser.id
-  });
-
-  if (error) {
-    message(
-      "admin-message",
-      "Could not save question: " + error.message +
-      ". Check the questions table columns and RLS policies.",
-      true
-    );
+  if (!questionText) {
+    message("admin-message", "Please enter the question text.", true);
     return;
   }
 
-  message("admin-message", "Question added successfully.");
-  $("admin-question-form")?.reset();
-  await loadAdminQuestions();
+  if (options.some((option) => !option.text)) {
+    message("admin-message", "Please fill in all four options.", true);
+    return;
+  }
+
+  if (!Number.isInteger(points) || points < 0) {
+    message("admin-message", "Points must be a valid non-negative integer.", true);
+    return;
+  }
+
+  if (correctOptionNumber < 1 || correctOptionNumber > 4) {
+    message("admin-message", "Select correct answer A, B, C, or D.", true);
+    return;
+  }
+
+  // Calculate Monday in India Standard Time (UTC+5:30).
+  const now = new Date();
+  const indiaDate = new Date(now.getTime() + 330 * 60 * 1000);
+  const weekday = indiaDate.getUTCDay();
+  const mondayOffset = (weekday + 6) % 7;
+  indiaDate.setUTCDate(indiaDate.getUTCDate() - mondayOffset);
+  const weekStart = indiaDate.toISOString().slice(0, 10);
+
+  const submitButton = $("admin-question-form")?.querySelector(
+    'button[type="submit"], button:not([type])'
+  );
+
+  if (submitButton) submitButton.disabled = true;
+  message("admin-message", "Saving question…");
+
+  try {
+    const { error } = await supabase.from("questions").insert({
+      question_text: questionText,
+      options,
+      correct_option: correctOptionNumber,
+      points,
+      week_start: weekStart,
+      created_by: currentUser.id
+    });
+
+    if (error) {
+      message(
+        "admin-message",
+        "Could not save question: " + error.message +
+        ". Check the questions table columns and RLS policies.",
+        true
+      );
+      return;
+    }
+
+    message("admin-message", "Question added successfully.");
+    $("admin-question-form")?.reset();
+    await loadAdminQuestions();
+  } catch (error) {
+    message(
+      "admin-message",
+      "Could not save question: " + (error.message || "Unknown error"),
+      true
+    );
+  } finally {
+    if (submitButton) submitButton.disabled = false;
+  }
 }
 
 function initialise() {
@@ -642,7 +703,6 @@ function initialise() {
 
     if (session?.user) {
       renderSignedIn(session.user);
-      // Avoid running Supabase requests inside the auth callback.
       queueMicrotask(() => loadDashboard());
     }
   });
