@@ -1,6 +1,7 @@
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const SUPABASE_URL = "https://imhxiljqhnenhkgbedxj.supabase.cobvbvvb";
+const SUPABASE_URL = "https://imhxiljqhnenhkgbedxj.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_sDCXNbfAhU4MFaZc18YTIA_f3glPpf-";
 const SITE_URL = "https://tihucollegequiz.netlify.app/";
 
@@ -15,723 +16,642 @@ let busy = false;
 const $ = (id) => document.getElementById(id);
 
 function show(id, visible) {
-const el = $(id);
-if (el) el.classList.toggle("hidden", !visible);
+  const element = $(id);
+  if (element) element.classList.toggle("hidden", !visible);
 }
 
 function message(id, text, isError = false) {
-const el = $(id);
-if (!el) return;
-el.textContent = text;
-el.style.color = isError ? "#fda4af" : "#86efac";
+  const element = $(id);
+  if (!element) return;
+
+  element.textContent = text;
+  element.style.color = isError ? "#fda4af" : "#86efac";
 }
 
 function setButton(id, text, disabled = false) {
-const el = $(id);
-if (!el) return;
-el.textContent = text;
-el.disabled = disabled;
+  const button = $(id);
+  if (!button) return;
+
+  button.textContent = text;
+  button.disabled = disabled;
 }
 
-function getCurrentWeekStart() {
-const now = new Date();
-const india = new Date(now.getTime() + 330 * 60 * 1000);
-const day = india.getUTCDay();
-india.setUTCDate(india.getUTCDate() - ((day + 6) % 7));
-return india.toISOString().slice(0, 10);
+function escapeHTML(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[character]);
 }
 
 function renderSignedOut() {
-currentUser = null;
-currentRole = "user";
-currentQuestions = [];
+  currentUser = null;
+  currentRole = "user";
 
-show("auth-panel", true);
-show("app-panel", false);
-show("admin-panel", false);
-show("logout-btn", false);
+  show("auth-panel", true);
+  show("app-panel", false);
+  show("admin-panel", false);
+  show("logout-btn", false);
 
-message("quiz-message", "");
-message("leaderboard-message", "");
+  message("quiz-message", "");
+  message("leaderboard-message", "");
 }
 
 function renderSignedIn(user) {
-currentUser = user;
+  currentUser = user;
 
-show("auth-panel", false);
-show("app-panel", true);
-show("logout-btn", true);
+  show("auth-panel", false);
+  show("app-panel", true);
+  show("logout-btn", true);
 
-if ($("user-label")) {
-$("user-label").textContent =
-user.user_metadata?.full_name || user.email || "Student";
-}
+  if ($("user-label")) {
+    $("user-label").textContent =
+      user.user_metadata?.full_name || user.email || "Student";
+  }
 }
 
 function setAuthMode(mode) {
-authMode = mode === "signup" ? "signup" : "login";
-const signup = authMode === "signup";
+  authMode = mode === "signup" ? "signup" : "login";
 
-if ($("login-tab")) {
-$("login-tab").classList.toggle("btn-primary", !signup);
-$("login-tab").classList.toggle("btn-secondary", signup);
-$("login-tab").setAttribute("aria-pressed", String(!signup));
-}
+  const signup = authMode === "signup";
 
-if ($("signup-tab")) {
-$("signup-tab").classList.toggle("btn-primary", signup);
-$("signup-tab").classList.toggle("btn-secondary", !signup);
-$("signup-tab").setAttribute("aria-pressed", String(signup));
-}
+  if ($("login-tab")) {
+    $("login-tab").classList.toggle("btn-primary", !signup);
+    $("login-tab").classList.toggle("btn-secondary", signup);
+    $("login-tab").setAttribute("aria-pressed", String(!signup));
+  }
 
-show("name-field", signup);
+  if ($("signup-tab")) {
+    $("signup-tab").classList.toggle("btn-primary", signup);
+    $("signup-tab").classList.toggle("btn-secondary", !signup);
+    $("signup-tab").setAttribute("aria-pressed", String(signup));
+  }
 
-if ($("auth-name")) $("auth-name").required = signup;
+  show("name-field", signup);
 
-if ($("auth-password")) {
-$("auth-password").autocomplete =
-signup ? "new-password" : "current-password";
-}
+  if ($("auth-name")) {
+    $("auth-name").required = signup;
+  }
 
-setButton("auth-submit", signup ? "Create account →" : "Log in →");
-message("auth-message", "");
+  if ($("auth-password")) {
+    $("auth-password").autocomplete =
+      signup ? "new-password" : "current-password";
+  }
+
+  setButton("auth-submit", signup ? "Create account →" : "Log in →");
+  message("auth-message", "");
 }
 
 async function loadRole() {
-currentRole = "user";
+  currentRole = "user";
 
-if (!currentUser) {
-show("admin-panel", false);
-return;
-}
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", currentUser.id)
+    .maybeSingle();
 
-const { data, error } = await supabase
-.from("profiles")
-.select("role")
-.eq("id", currentUser.id)
-.maybeSingle();
+  if (error) {
+    console.warn("Profile role could not be loaded:", error.message);
+    show("admin-panel", false);
+    return;
+  }
 
-if (error) {
-console.error("Role loading error:", error.message);
-show("admin-panel", false);
-return;
-}
-
-currentRole = data?.role || "user";
-show("admin-panel", currentRole === "admin");
+  currentRole = data?.role || "user";
+  show("admin-panel", currentRole === "admin");
 }
 
 function getOptionList(options) {
-if (Array.isArray(options)) return options;
+  if (Array.isArray(options)) return options;
 
-if (typeof options === "string") {
-try {
-const parsed = JSON.parse(options);
-if (Array.isArray(parsed)) return parsed;
-} catch {
-// Invalid JSON.
-}
-}
+  if (typeof options === "string") {
+    try {
+      const parsed = JSON.parse(options);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // Show a useful message if options are stored in another format.
+    }
+  }
 
-if (options && typeof options === "object") {
-return Object.entries(options).map(([key, value]) => ({
-key,
-text: value
-}));
-}
+  if (options && typeof options === "object") {
+    return Object.entries(options).map(([key, value]) => ({
+      key,
+      text: value
+    }));
+  }
 
-return [];
-}
-
-/*
-
-- Quiz and database use zero-based indexes:
-- A = 0, B = 1, C = 2, D = 3.
-  */
-  function getOptionNumber(option, index) {
-  const raw = typeof option === "object"
-  ? String(option.key ?? option.label ?? "").trim().toUpperCase()
-  : "";
-
-if (/^[A-D]$/.test(raw)) return raw.charCodeAt(0) - 65;
-if (/^[0-3]$/.test(raw)) return Number(raw);
-if (/^[1-4]$/.test(raw)) return Number(raw) - 1;
-
-return index;
-}
-
-/*
-
-- Read the correct-answer dropdown robustly.
-- selectedIndex is used if the HTML option values are incorrect.
-  */
-  function getCorrectOptionIndex() {
-  const select = $("correct-option");
-  if (!select || select.selectedIndex < 0) return -1;
-
-const selected = select.options[select.selectedIndex];
-const rawValue = String(selected?.value ?? "").trim().toUpperCase();
-const rawText = String(selected?.textContent ?? "").trim().toUpperCase();
-
-if (/^[A-D]$/.test(rawValue)) {
-return rawValue.charCodeAt(0) - 65;
-}
-
-if (/^[0-3]$/.test(rawValue)) {
-return Number(rawValue);
-}
-
-if (/^[1-4]$/.test(rawValue)) {
-return Number(rawValue) - 1;
-}
-
-const match = rawText.match(/(?:OPTION\s*)?([A-D])(?:\b|$)/);
-
-if (match) {
-return match[1].charCodeAt(0) - 65;
-}
-
-return select.selectedIndex >= 0 && select.selectedIndex <= 3
-? select.selectedIndex
-: -1;
+  return [];
 }
 
 async function loadQuestions() {
-const container = $("quiz-questions");
-if (!container) return;
+  const container = $("quiz-questions");
+  if (!container) return;
 
-container.replaceChildren();
-currentQuestions = [];
-message("quiz-message", "");
+  container.replaceChildren();
+  currentQuestions = [];
 
-if ($("quiz-status")) {
-$("quiz-status").textContent = "Loading this week's questions…";
-}
+  message("quiz-message", "");
+  if ($("quiz-status")) {
+    $("quiz-status").textContent = "Loading this week's questions…";
+  }
 
-const { data, error } = await supabase
-.from("public_questions")
-.select("id,question_text,options,points,week_start")
-.eq("week_start", getCurrentWeekStart())
-.order("question_text", { ascending: true })
-.limit(50);
+  const { data, error } = await supabase
+    .from("public_questions")
+    .select("id,question_text,options,points,week_start")
+    .order("week_start", { ascending: false })
+    .limit(50);
 
-if (error) {
-message("quiz-message", error.message, true);
-if ($("quiz-status")) {
-$("quiz-status").textContent = "Questions could not be loaded.";
-}
-return;
-}
+  if (error) {
+    if ($("quiz-status")) {
+      $("quiz-status").textContent = "Questions could not be loaded.";
+    }
 
-if (!data?.length) {
-if ($("quiz-status")) {
-$("quiz-status").textContent = "No published questions found for this week.";
-}
-return;
-}
+    message(
+      "quiz-message",
+      "Question loading error: " + error.message,
+      true
+    );
+    return;
+  }
 
-currentQuestions = data;
+  if (!data?.length) {
+    if ($("quiz-status")) {
+      $("quiz-status").textContent =
+        "No published questions were found. Please check back later.";
+    }
+    return;
+  }
 
-data.forEach((question, index) => {
-const card = document.createElement("article");
-card.className = "question-card";
+  currentQuestions = data;
 
-const heading = document.createElement("h3");
-heading.textContent = `${index + 1}. ${question.question_text || "Question"}`;
+  data.forEach((question, index) => {
+    const card = document.createElement("article");
+    card.className = "question-card";
 
-const points = document.createElement("p");
-points.className = "muted";
-points.textContent = `${Number(question.points) || 0} points`;
+    const heading = document.createElement("h3");
+    heading.textContent =
+      `${index + 1}. ${question.question_text || "Question"}`;
 
-card.append(heading, points);
+    const points = document.createElement("p");
+    points.className = "muted";
+    points.textContent = `${Number(question.points) || 0} points`;
 
-const options = getOptionList(question.options);
+    card.append(heading, points);
 
-if (!options.length) {
-  const warning = document.createElement("p");
-  warning.className = "muted";
-  warning.textContent = "Options are not configured.";
-  card.append(warning);
-} else {
-  options.forEach((option, optionIndex) => {
-    const number = getOptionNumber(option, optionIndex);
-    const optionText = typeof option === "object"
-      ? String(option.text ?? option.label ?? option.value ?? "")
-      : String(option);
+    const options = getOptionList(question.options);
 
-    const label = document.createElement("label");
-    const radio = document.createElement("input");
-    const text = document.createElement("span");
+    if (!options.length) {
+      const warning = document.createElement("p");
+      warning.className = "muted";
+      warning.textContent = "Options are not configured for this question.";
+      card.append(warning);
+    } else {
+      options.forEach((option, optionIndex) => {
+        const value =
+          typeof option === "object"
+            ? String(option.key ?? option.value ?? optionIndex)
+            : String(optionIndex);
 
-    radio.type = "radio";
-    radio.name = `question-${question.id}`;
-    radio.value = String(number);
-    radio.required = optionIndex === 0;
+        const labelText =
+          typeof option === "object"
+            ? String(option.text ?? option.label ?? option.value ?? "")
+            : String(option);
 
-    text.textContent = optionText;
-    label.append(radio, text);
-    card.append(label);
+        const label = document.createElement("label");
+        const radio = document.createElement("input");
+
+        radio.type = "radio";
+        radio.name = `question-${question.id}`;
+        radio.value = value;
+        radio.required = optionIndex === 0;
+
+        const text = document.createElement("span");
+        text.textContent = labelText;
+
+        label.append(radio, text);
+        card.append(label);
+      });
+    }
+
+    container.append(card);
   });
-}
 
-container.append(card);
-
-});
-
-if ($("quiz-status")) {
-$("quiz-status").textContent =
-"${data.length} question(s) loaded. Select your answers below.";
-}
+  if ($("quiz-status")) {
+    $("quiz-status").textContent =
+      `${data.length} question(s) loaded. Select your answers below.`;
+  }
 }
 
 async function loadLeaderboard() {
-const body = $("leaderboard-body");
-if (!body) return;
+  const body = $("leaderboard-body");
+  if (!body) return;
 
-body.replaceChildren();
+  body.replaceChildren();
 
-const { data, error } = await supabase.rpc("weekly_leaderboard");
+  const { data, error } = await supabase.rpc("weekly_leaderboard");
 
-if (error) {
-const row = document.createElement("tr");
-const cell = document.createElement("td");
-cell.colSpan = 3;
-cell.textContent = "Leaderboard unavailable: " + error.message;
-row.append(cell);
-body.append(row);
-message("leaderboard-message", error.message, true);
-return;
-}
+  if (error) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 3;
+    cell.textContent = "Leaderboard unavailable: " + error.message;
+    row.append(cell);
+    body.append(row);
+    message("leaderboard-message", error.message, true);
+    return;
+  }
 
-if (!data?.length) {
-const row = document.createElement("tr");
-const cell = document.createElement("td");
-cell.colSpan = 3;
-cell.textContent = "No scores recorded this week yet.";
-row.append(cell);
-body.append(row);
-return;
-}
+  if (!data?.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 3;
+    cell.textContent = "No scores recorded for this week yet.";
+    row.append(cell);
+    body.append(row);
+    return;
+  }
 
-data.forEach((item, index) => {
-const row = document.createElement("tr");
-const rank = document.createElement("td");
-const student = document.createElement("td");
-const points = document.createElement("td");
+  data.forEach((item, index) => {
+    const row = document.createElement("tr");
 
-rank.textContent = String(index + 1);
-student.textContent =
-  item.full_name || item.name || item.email || "Student";
-points.textContent = String(item.points ?? item.score ?? 0);
+    const rank = document.createElement("td");
+    rank.textContent = String(index + 1);
 
-row.append(rank, student, points);
-body.append(row);
+    const student = document.createElement("td");
+    student.textContent =
+      item.full_name || item.name || item.email || "Student";
 
-});
+    const points = document.createElement("td");
+    points.textContent = String(item.points ?? item.score ?? 0);
+
+    row.append(rank, student, points);
+    body.append(row);
+  });
 }
 
 async function loadArchive() {
-const container = $("archive-list");
-if (!container) return;
+  const container = $("archive-list");
+  if (!container) return;
 
-container.replaceChildren();
+  container.replaceChildren();
 
-const { data, error } = await supabase
-.from("weekly_winners")
-.select("*")
-.order("week_start", { ascending: false })
-.limit(20);
+  const { data, error } = await supabase
+    .from("weekly_winners")
+    .select("*")
+    .order("week_start", { ascending: false })
+    .limit(20);
 
-if (error || !data?.length) {
-const item = document.createElement("p");
-item.className = "muted";
-item.textContent = error
-? "Past winners unavailable: " + error.message
-: "Past weekly winners will appear here.";
-container.append(item);
-return;
-}
+  if (error) {
+    const item = document.createElement("p");
+    item.className = "muted";
+    item.textContent = "Past winners unavailable: " + error.message;
+    container.append(item);
+    return;
+  }
 
-data.forEach((winner) => {
-const item = document.createElement("article");
-item.className = "archive-item";
+  if (!data?.length) {
+    const item = document.createElement("p");
+    item.className = "muted";
+    item.textContent = "Past weekly winners will appear here.";
+    container.append(item);
+    return;
+  }
 
-const title = document.createElement("strong");
-title.textContent =
-  winner.full_name || winner.name || winner.winner_name || "Weekly winner";
+  data.forEach((winner) => {
+    const item = document.createElement("article");
+    item.className = "archive-item";
 
-const details = document.createElement("p");
-details.className = "muted";
-details.textContent = [
-  winner.week_start ? `Week: ${winner.week_start}` : "",
-  winner.points != null ? `Points: ${winner.points}` : ""
-].filter(Boolean).join(" • ");
+    const title = document.createElement("strong");
+    title.textContent =
+      winner.full_name ||
+      winner.name ||
+      winner.winner_name ||
+      "Weekly winner";
 
-item.append(title, details);
-container.append(item);
+    const details = document.createElement("p");
+    details.className = "muted";
+    details.textContent = [
+      winner.week_start ? `Week: ${winner.week_start}` : "",
+      winner.points != null ? `Points: ${winner.points}` : ""
+    ].filter(Boolean).join(" • ");
 
-});
+    item.append(title, details);
+    container.append(item);
+  });
 }
 
 async function loadAdminQuestions() {
-const container = $("admin-question-list");
-if (!container || currentRole !== "admin") return;
+  const container = $("admin-question-list");
+  if (!container || currentRole !== "admin") return;
 
-container.replaceChildren();
+  container.replaceChildren();
 
-const { data, error } = await supabase
-.from("questions")
-.select("id,question_text,options,points,week_start,correct_option")
-.order("created_at", { ascending: false })
-.limit(30);
+  const { data, error } = await supabase
+    .from("questions")
+    .select("id,question_text,options,points,week_start")
+    .order("created_at", { ascending: false })
+    .limit(30);
 
-if (error) {
-const item = document.createElement("p");
-item.className = "muted";
-item.textContent = "Admin question loading error: " + error.message;
-container.append(item);
-return;
-}
+  if (error) {
+    const item = document.createElement("p");
+    item.textContent = "Admin question loading error: " + error.message;
+    item.className = "muted";
+    container.append(item);
+    return;
+  }
 
-if (!data?.length) {
-const item = document.createElement("p");
-item.className = "muted";
-item.textContent = "No questions found.";
-container.append(item);
-return;
-}
+  if (!data?.length) {
+    const item = document.createElement("p");
+    item.textContent = "No questions found in the admin table.";
+    item.className = "muted";
+    container.append(item);
+    return;
+  }
 
-data.forEach((question) => {
-const item = document.createElement("article");
-item.className = "admin-question-item";
+  data.forEach((question) => {
+    const item = document.createElement("article");
+    item.className = "admin-question-item";
 
-const title = document.createElement("strong");
-title.textContent = question.question_text || "Untitled question";
+    const title = document.createElement("strong");
+    title.textContent = question.question_text || "Untitled question";
 
-const index = Number(question.correct_option);
-const answer = ["A", "B", "C", "D"][index] ?? "Check database";
+    const details = document.createElement("p");
+    details.className = "muted";
+    details.textContent =
+      `${Number(question.points) || 0} points · ID: ${question.id}`;
 
-const details = document.createElement("p");
-details.className = "muted";
-details.textContent =
-  `${Number(question.points) || 0} points · Correct answer: ${answer}`;
-
-item.append(title, details);
-container.append(item);
-
-});
+    item.append(title, details);
+    container.append(item);
+  });
 }
 
 async function loadDashboard() {
-await loadRole();
+  await loadRole();
 
-await Promise.allSettled([
-loadQuestions(),
-loadLeaderboard(),
-loadArchive()
-]);
+  await Promise.allSettled([
+    loadQuestions(),
+    loadLeaderboard(),
+    loadArchive()
+  ]);
 
-if (currentRole === "admin") await loadAdminQuestions();
+  if (currentRole === "admin") {
+    await loadAdminQuestions();
+  }
 }
 
 async function loadSession() {
-const { data, error } = await supabase.auth.getSession();
+  const { data, error } = await supabase.auth.getSession();
 
-if (error) {
-renderSignedOut();
-message("auth-message", "Session error: " + error.message, true);
-return;
-}
+  if (error) {
+    renderSignedOut();
+    message("auth-message", "Session error: " + error.message, true);
+    return;
+  }
 
-if (!data.session?.user) {
-renderSignedOut();
-return;
-}
+  const user = data.session?.user || null;
 
-renderSignedIn(data.session.user);
-await loadDashboard();
+  if (!user) {
+    renderSignedOut();
+    return;
+  }
+
+  renderSignedIn(user);
+  await loadDashboard();
 }
 
 async function handleAuthSubmit(event) {
-event.preventDefault();
+  event.preventDefault();
 
-if (busy) return;
-busy = true;
+  if (busy) return;
+  busy = true;
 
-const email = $("auth-email")?.value.trim();
-const password = $("auth-password")?.value;
-const fullName = $("auth-name")?.value.trim();
+  const email = $("auth-email")?.value.trim();
+  const password = $("auth-password")?.value;
+  const fullName = $("auth-name")?.value.trim();
 
-setButton("auth-submit", "Please wait…", true);
-message("auth-message", "");
+  setButton("auth-submit", "Please wait…", true);
+  message("auth-message", "");
 
-try {
-let result;
+  try {
+    let result;
 
-if (authMode === "signup") {
-  result = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: SITE_URL,
-      data: { full_name: fullName || "" }
+    if (authMode === "signup") {
+      result = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: SITE_URL,
+          data: {
+            full_name: fullName || ""
+          }
+        }
+      });
+
+      if (result.error) throw result.error;
+
+      if (result.data.session) {
+        renderSignedIn(result.data.user);
+        message("auth-message", "Account created successfully.");
+        await loadDashboard();
+      } else {
+        message(
+          "auth-message",
+          "Account created. Check your email to confirm it, then log in."
+        );
+      }
+    } else {
+      result = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (result.error) throw result.error;
+
+      renderSignedIn(result.data.user);
+      message("auth-message", "Welcome back!");
+      await loadDashboard();
     }
-  });
-
-  if (result.error) throw result.error;
-
-  if (result.data.session) {
-    renderSignedIn(result.data.user);
-    await loadDashboard();
-    message("auth-message", "Account created successfully.");
-  } else {
+  } catch (error) {
+    console.error("Authentication error:", error);
     message(
       "auth-message",
-      "Account created. Confirm your email, then log in."
+      error?.message || "Unable to complete authentication.",
+      true
+    );
+  } finally {
+    busy = false;
+    setButton(
+      "auth-submit",
+      authMode === "signup" ? "Create account →" : "Log in →",
+      false
     );
   }
-} else {
-  result = await supabase.auth.signInWithPassword({ email, password });
-
-  if (result.error) throw result.error;
-
-  renderSignedIn(result.data.user);
-  await loadDashboard();
-  message("auth-message", "Welcome back!");
-}
-
-} catch (error) {
-console.error(error);
-message("auth-message", error.message || "Authentication failed.", true);
-} finally {
-busy = false;
-setButton(
-"auth-submit",
-authMode === "signup" ? "Create account →" : "Log in →",
-false
-);
-}
 }
 
 async function handleLogout() {
-const button = $("logout-btn");
-if (button) button.disabled = true;
+  const button = $("logout-btn");
+  if (button) button.disabled = true;
 
-try {
-const { error } = await supabase.auth.signOut();
-if (error) throw error;
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
 
-renderSignedOut();
-setAuthMode("login");
-message("auth-message", "You have logged out.");
-
-} catch (error) {
-message("auth-message", error.message || "Logout failed.", true);
-} finally {
-if (button) button.disabled = false;
-}
+    renderSignedOut();
+    setAuthMode("login");
+    message("auth-message", "You have logged out.");
+  } catch (error) {
+    message("auth-message", error.message || "Logout failed.", true);
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 
 async function handleQuizSubmit(event) {
-event.preventDefault();
+  event.preventDefault();
 
-if (!currentUser) {
-message("quiz-message", "Please log in first.", true);
-return;
-}
+  if (!currentUser) {
+    message("quiz-message", "Please log in first.", true);
+    return;
+  }
 
-if (!currentQuestions.length) {
-message("quiz-message", "There are no questions to submit.", true);
-return;
-}
+  if (!currentQuestions.length) {
+    message("quiz-message", "There are no questions to submit.", true);
+    return;
+  }
 
-const answers = [];
+  const answers = [];
 
-for (const question of currentQuestions) {
-const selected = document.querySelector(
-"input[name="question-${CSS.escape(String(question.id))}"]:checked"
-);
+  for (const question of currentQuestions) {
+    const selected = document.querySelector(
+      `input[name="question-${CSS.escape(String(question.id))}"]:checked`
+    );
 
-if (!selected) {
-  message("quiz-message", "Please answer every question first.", true);
-  return;
-}
+    if (!selected) {
+      message("quiz-message", "Please answer every question first.", true);
+      return;
+    }
 
-const selectedOption = Number(selected.value);
+    answers.push({
+      question_id: question.id,
+      selected_option: selected.value
+    });
+  }
 
-if (
-  !Number.isInteger(selectedOption) ||
-  selectedOption < 0 ||
-  selectedOption > 3
-) {
-  message("quiz-message", "Invalid option. Reload the quiz.", true);
-  return;
-}
+  const button = $("submit-quiz-btn");
+  if (button) button.disabled = true;
 
-answers.push({
-  question_id: question.id,
-  selected_option: selectedOption
-});
+  try {
+    const { data, error } = await supabase.rpc("submit_quiz", {
+      answers
+    });
 
-}
+    if (error) {
+      message(
+        "quiz-message",
+        "Submission failed: " + error.message +
+        ". The submit_quiz database function may need different arguments.",
+        true
+      );
+      return;
+    }
 
-const button = $("submit-quiz-btn");
-if (button) button.disabled = true;
+    message(
+      "quiz-message",
+      data?.message || "Answers submitted successfully."
+    );
 
-message("quiz-message", "Submitting answers…");
-
-try {
-const { data, error } = await supabase.rpc("submit_quiz", {
-p_week_start: getCurrentWeekStart(),
-p_answers: answers
-});
-
-if (error) throw error;
-
-message(
-  "quiz-message",
-  `Submitted! Points earned: ${Number(data?.points_earned ?? 0)}. ` +
-  `Weekly total: ${Number(data?.total_points ?? 0)}. ` +
-  `New answers recorded: ${Number(data?.new_answers_recorded ?? 0)}.`
-);
-
-await loadLeaderboard();
-
-} catch (error) {
-console.error("Quiz submission error:", error);
-message(
-"quiz-message",
-"Submission failed: " + (error.message || "Unknown error"),
-true
-);
-} finally {
-if (button) button.disabled = false;
-}
+    await loadLeaderboard();
+  } catch (error) {
+    message("quiz-message", error.message || "Submission failed.", true);
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 
 async function handleAdminQuestionSubmit(event) {
-event.preventDefault();
+  event.preventDefault();
 
-if (!currentUser || currentRole !== "admin") {
-message("admin-message", "Admin access is required.", true);
-return;
-}
+  if (currentRole !== "admin") {
+    message("admin-message", "Admin access is required.", true);
+    return;
+  }
 
-const questionText = $("question-text")?.value.trim();
-const points = Number($("question-points")?.value || 10);
-const correctOptionNumber = getCorrectOptionIndex();
+  const questionText = $("question-text")?.value.trim();
+  const points = Number($("question-points")?.value || 10);
+  const correctOption = $("correct-option")?.value;
 
-const options = [
-{ key: "A", text: $("option-a")?.value.trim() || "" },
-{ key: "B", text: $("option-b")?.value.trim() || "" },
-{ key: "C", text: $("option-c")?.value.trim() || "" },
-{ key: "D", text: $("option-d")?.value.trim() || "" }
-];
+  const options = [
+    { key: "A", text: $("option-a")?.value.trim() },
+    { key: "B", text: $("option-b")?.value.trim() },
+    { key: "C", text: $("option-c")?.value.trim() },
+    { key: "D", text: $("option-d")?.value.trim() }
+  ];
 
-if (!questionText) {
-message("admin-message", "Please enter the question.", true);
-return;
-}
+  const today = new Date();
+  const day = today.getUTCDay();
+  const mondayOffset = (day + 6) % 7;
+  today.setUTCDate(today.getUTCDate() - mondayOffset);
+  const weekStart = today.toISOString().slice(0, 10);
 
-if (options.some((option) => !option.text)) {
-message("admin-message", "Please fill all four options.", true);
-return;
-}
+  message("admin-message", "Saving question…");
 
-if (!Number.isInteger(points) || points < 0) {
-message("admin-message", "Points must be a non-negative integer.", true);
-return;
-}
+  const { error } = await supabase.from("questions").insert({
+    question_text: questionText,
+    options,
+    correct_option: correctOption,
+    points,
+    week_start: weekStart,
+    created_by: currentUser.id
+  });
 
-if (correctOptionNumber < 0 || correctOptionNumber > 3) {
-message(
-"admin-message",
-"Select a valid correct answer: A, B, C or D.",
-true
-);
-return;
-}
+  if (error) {
+    message(
+      "admin-message",
+      "Could not save question: " + error.message +
+      ". Check the questions table columns and RLS policies.",
+      true
+    );
+    return;
+  }
 
-const button = $("admin-question-form")?.querySelector(
-'button[type="submit"], button:not([type])'
-);
-
-if (button) button.disabled = true;
-
-message("admin-message", "Saving question…");
-
-try {
-const { error } = await supabase.from("questions").insert({
-question_text: questionText,
-options,
-correct_option: correctOptionNumber,
-points,
-week_start: getCurrentWeekStart(),
-created_by: currentUser.id
-});
-
-if (error) throw error;
-
-message(
-  "admin-message",
-  `Question saved successfully. Correct answer: ${
-    ["A", "B", "C", "D"][correctOptionNumber]
-  }.`
-);
-
-$("admin-question-form")?.reset();
-
-await Promise.allSettled([
-  loadAdminQuestions(),
-  loadQuestions()
-]);
-
-} catch (error) {
-console.error("Question save error:", error);
-
-message(
-  "admin-message",
-  "Could not save question: " + (error.message || "Unknown error"),
-  true
-);
-
-} finally {
-if (button) button.disabled = false;
-}
+  message("admin-message", "Question added successfully.");
+  $("admin-question-form")?.reset();
+  await loadAdminQuestions();
 }
 
 function initialise() {
-$("login-tab")?.addEventListener("click", () => setAuthMode("login"));
-$("signup-tab")?.addEventListener("click", () => setAuthMode("signup"));
-$("auth-form")?.addEventListener("submit", handleAuthSubmit);
-$("logout-btn")?.addEventListener("click", handleLogout);
-$("quiz-form")?.addEventListener("submit", handleQuizSubmit);
+  $("login-tab")?.addEventListener("click", () => setAuthMode("login"));
+  $("signup-tab")?.addEventListener("click", () => setAuthMode("signup"));
+  $("auth-form")?.addEventListener("submit", handleAuthSubmit);
+  $("logout-btn")?.addEventListener("click", handleLogout);
+  $("quiz-form")?.addEventListener("submit", handleQuizSubmit);
+  $("admin-question-form")?.addEventListener(
+    "submit",
+    handleAdminQuestionSubmit
+  );
 
-$("admin-question-form")?.addEventListener(
-"submit",
-handleAdminQuestionSubmit
-);
+  setAuthMode("login");
 
-setAuthMode("login");
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_OUT") {
+      renderSignedOut();
+      return;
+    }
 
-supabase.auth.onAuthStateChange((event, session) => {
-if (event === "SIGNED_OUT") {
-renderSignedOut();
-return;
-}
+    if (session?.user) {
+      renderSignedIn(session.user);
+      // Avoid running Supabase requests inside the auth callback.
+      queueMicrotask(() => loadDashboard());
+    }
+  });
 
-if (session?.user) {
-  renderSignedIn(session.user);
-  queueMicrotask(() => loadDashboard());
-}
-
-});
-
-loadSession().catch((error) => {
-console.error("Startup error:", error);
-renderSignedOut();
-message("auth-message", "Startup error: " + error.message, true);
-});
+  loadSession().catch((error) => {
+    console.error("Startup error:", error);
+    renderSignedOut();
+    message("auth-message", "Startup error: " + error.message, true);
+  });
 }
 
 initialise();
