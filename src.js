@@ -1,730 +1,725 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = "https://imhxiljqhnenhkgbedxj.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_sDCXNbfAhU4MFaZc18YTIA_f3glPpf-";
-const SITE_URL = "https://tihucollegequiz.netlify.app/";
+// DELULU'S WORLD — Supabase Configuration
+const SUPABASE_URL = 'https://imhxiljqhnenhkgbedxj.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_sDCXNbfAhU4MFaZc18YTIA_f3glPpf-';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-let currentUser = null;
-let currentRole = "user";
-let currentQuestions = [];
-let authMode = "login";
-let busy = false;
-
 const $ = (id) => document.getElementById(id);
 
-function show(id, visible) {
-  const element = $(id);
-  if (element) element.classList.toggle("hidden", !visible);
+let mode = 'login';
+let user = null;
+let questions = [];
+let current = 0;
+let selected = {};
+let submitted = false;
+let loadingSession = false;
+let sessionToken = 0;
+
+const letters = ['A', 'B', 'C', 'D'];
+
+function say(id, message, error = false) {
+  const el = $(id);
+  if (!el) return;
+
+  el.textContent = message;
+  el.style.color = error ? '#ffaaaa' : 'var(--accent)';
 }
 
-function message(id, text, isError = false) {
-  const element = $(id);
-  if (!element) return;
-  element.textContent = text;
-  element.style.color = isError ? "#fda4af" : "#86efac";
+function toast(message) {
+  const el = $('toast');
+  if (!el) {
+    console.log(message);
+    return;
+  }
+
+  el.textContent = message;
+  el.classList.add('show');
+
+  setTimeout(() => {
+    el.classList.remove('show');
+  }, 2600);
 }
 
-function setButton(id, text, disabled = false) {
-  const button = $(id);
-  if (!button) return;
-  button.textContent = text;
-  button.disabled = disabled;
+function show(id, visible = true) {
+  const el = $(id);
+  if (el) el.classList.toggle('hidden', !visible);
 }
 
-function renderSignedOut() {
-  currentUser = null;
-  currentRole = "user";
-
-  show("auth-panel", true);
-  show("app-panel", false);
-  show("admin-panel", false);
-  show("logout-btn", false);
-
-  message("quiz-message", "");
-  message("leaderboard-message", "");
+function escapeHtml(value = '') {
+  return String(value).replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[char]);
 }
 
-function renderSignedIn(user) {
-  currentUser = user;
+// Monday-starting week, using Indian Standard Time.
+function weekStartISO() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date());
 
-  show("auth-panel", false);
-  show("app-panel", true);
-  show("logout-btn", true);
+  const values = {};
+  parts.forEach((part) => {
+    values[part.type] = part.value;
+  });
 
-  if ($("user-label")) {
-    $("user-label").textContent =
-      user.user_metadata?.full_name || user.email || "Student";
-  }
-}
-
-function setAuthMode(mode) {
-  authMode = mode === "signup" ? "signup" : "login";
-  const signup = authMode === "signup";
-
-  if ($("login-tab")) {
-    $("login-tab").classList.toggle("btn-primary", !signup);
-    $("login-tab").classList.toggle("btn-secondary", signup);
-    $("login-tab").setAttribute("aria-pressed", String(!signup));
-  }
-
-  if ($("signup-tab")) {
-    $("signup-tab").classList.toggle("btn-primary", signup);
-    $("signup-tab").classList.toggle("btn-secondary", !signup);
-    $("signup-tab").setAttribute("aria-pressed", String(signup));
-  }
-
-  show("name-field", signup);
-
-  if ($("auth-name")) {
-    $("auth-name").required = signup;
-  }
-
-  if ($("auth-password")) {
-    $("auth-password").autocomplete =
-      signup ? "new-password" : "current-password";
-  }
-
-  setButton(
-    "auth-submit",
-    signup ? "Create account →" : "Log in →"
+  const date = new Date(
+    `${values.year}-${values.month}-${values.day}T00:00:00+05:30`
   );
 
-  message("auth-message", "");
+  const day = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - day);
+
+  return [
+    date.getUTCFullYear(),
+    String(date.getUTCMonth() + 1).padStart(2, '0'),
+    String(date.getUTCDate()).padStart(2, '0')
+  ].join('-');
 }
 
-async function loadRole() {
-  currentRole = "user";
+function weekLabel() {
+  const start = new Date(`${weekStartISO()}T00:00:00+05:30`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 6);
 
-  if (!currentUser) {
-    show("admin-panel", false);
-    return;
-  }
+  const format = (date, options) =>
+    new Intl.DateTimeFormat('en-IN', {
+      ...options,
+      timeZone: 'Asia/Kolkata'
+    }).format(date);
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", currentUser.id)
-    .maybeSingle();
-
-  if (error) {
-    console.warn("Profile role could not be loaded:", error.message);
-    show("admin-panel", false);
-    return;
-  }
-
-  currentRole = data?.role || "user";
-  show("admin-panel", currentRole === "admin");
-}
-
-function getOptionList(options) {
-  if (Array.isArray(options)) return options;
-
-  if (typeof options === "string") {
-    try {
-      const parsed = JSON.parse(options);
-      if (Array.isArray(parsed)) return parsed;
-    } catch {
-      // Invalid JSON.
-    }
-  }
-
-  if (options && typeof options === "object") {
-    return Object.entries(options).map(([key, value]) => ({
-      key,
-      text: value
-    }));
-  }
-
-  return [];
-}
-
-// Correct-answer and selected-answer convention:
-// A = 0, B = 1, C = 2, D = 3.
-function getOptionIndex(option, index) {
-  const raw = typeof option === "object"
-    ? String(option.key ?? option.value ?? "").trim().toUpperCase()
-    : "";
-
-  if (/^[A-D]$/.test(raw)) {
-    return raw.charCodeAt(0) - 65;
-  }
-
-  if (/^[0-3]$/.test(raw)) {
-    return Number(raw);
-  }
-
-  if (/^[1-4]$/.test(raw)) {
-    return Number(raw) - 1;
-  }
-
-  return index;
-}
-
-async function loadQuestions() {
-  const container = $("quiz-questions");
-  if (!container) return;
-
-  container.replaceChildren();
-  currentQuestions = [];
-
-  message("quiz-message", "");
-
-  if ($("quiz-status")) {
-    $("quiz-status").textContent = "Loading this week's questions…";
-  }
-
-  const { data, error } = await supabase
-    .from("public_questions")
-    .select("id,question_text,options,points,week_start")
-    .order("week_start", { ascending: false })
-    .limit(50);
-
-  if (error) {
-    $("quiz-status") &&
-      ($("quiz-status").textContent = "Questions could not be loaded.");
-
-    message("quiz-message", "Question loading error: " + error.message, true);
-    return;
-  }
-
-  if (!data?.length) {
-    if ($("quiz-status")) {
-      $("quiz-status").textContent =
-        "No published questions were found. Please check back later.";
-    }
-    return;
-  }
-
-  currentQuestions = data;
-
-  data.forEach((question, index) => {
-    const card = document.createElement("article");
-    card.className = "question-card";
-
-    const heading = document.createElement("h3");
-    heading.textContent =
-      `${index + 1}. ${question.question_text || "Question"}`;
-
-    const points = document.createElement("p");
-    points.className = "muted";
-    points.textContent = `${Number(question.points) || 0} points`;
-
-    card.append(heading, points);
-
-    const options = getOptionList(question.options);
-
-    if (!options.length) {
-      const warning = document.createElement("p");
-      warning.className = "muted";
-      warning.textContent = "Options are not configured for this question.";
-      card.append(warning);
-    } else {
-      options.forEach((option, optionIndex) => {
-        const optionIndexValue = getOptionIndex(option, optionIndex);
-
-        const labelText = typeof option === "object"
-          ? String(option.text ?? option.label ?? option.value ?? "")
-          : String(option);
-
-        const label = document.createElement("label");
-        const radio = document.createElement("input");
-
-        radio.type = "radio";
-        radio.name = `question-${question.id}`;
-        radio.value = String(optionIndexValue);
-        radio.required = optionIndex === 0;
-
-        const text = document.createElement("span");
-        text.textContent = labelText;
-
-        label.append(radio, text);
-        card.append(label);
-      });
-    }
-
-    container.append(card);
-  });
-
-  if ($("quiz-status")) {
-    $("quiz-status").textContent =
-      `${data.length} question(s) loaded. Select your answers below.`;
+  const label = $('week-label');
+  if (label) {
+    label.textContent =
+      `${format(start, { day: 'numeric', month: 'short' })} – ` +
+      `${format(end, {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      })}`;
   }
 }
 
-async function loadLeaderboard() {
-  const body = $("leaderboard-body");
-  if (!body) return;
+// ---------------- AUTH TABS ----------------
 
-  body.replaceChildren();
+function setMode(nextMode) {
+  mode = nextMode;
 
-  const { data, error } = await supabase.rpc("weekly_leaderboard");
+  $('login-tab')?.classList.toggle('active', mode === 'login');
+  $('signup-tab')?.classList.toggle('active', mode === 'signup');
 
-  if (error) {
-    const row = document.createElement("tr");
-    const cell = document.createElement("td");
-    cell.colSpan = 3;
-    cell.textContent = "Leaderboard unavailable: " + error.message;
-    row.append(cell);
-    body.append(row);
-    message("leaderboard-message", error.message, true);
-    return;
+  show('name-wrap', mode === 'signup');
+
+  const submit = $('auth-submit');
+  if (submit) {
+    submit.innerHTML = mode === 'login'
+      ? 'Log in <span>→</span>'
+      : 'Create account <span>→</span>';
   }
 
-  if (!data?.length) {
-    const row = document.createElement("tr");
-    const cell = document.createElement("td");
-    cell.colSpan = 3;
-    cell.textContent = "No scores recorded for this week yet.";
-    row.append(cell);
-    body.append(row);
-    return;
+  const password = $('password');
+  if (password) {
+    password.autocomplete =
+      mode === 'login' ? 'current-password' : 'new-password';
   }
 
-  data.forEach((item, index) => {
-    const row = document.createElement("tr");
-
-    const rank = document.createElement("td");
-    rank.textContent = String(index + 1);
-
-    const student = document.createElement("td");
-    student.textContent =
-      item.full_name || item.name || item.email || "Student";
-
-    const points = document.createElement("td");
-    points.textContent = String(item.points ?? item.score ?? 0);
-
-    row.append(rank, student, points);
-    body.append(row);
-  });
+  say('auth-message', '');
 }
 
-async function loadArchive() {
-  const container = $("archive-list");
-  if (!container) return;
+$('login-tab')?.addEventListener('click', () => setMode('login'));
+$('signup-tab')?.addEventListener('click', () => setMode('signup'));
 
-  container.replaceChildren();
+// ---------------- SIGNED-OUT SCREEN ----------------
 
-  const { data, error } = await supabase
-    .from("weekly_winners")
-    .select("*")
-    .order("week_start", { ascending: false })
-    .limit(20);
+function renderSignedOut() {
+  show('auth-panel', true);
+  show('app-panel', false);
+  show('logout-btn', false);
+  show('admin-panel', false);
 
-  if (error) {
-    const item = document.createElement("p");
-    item.className = "muted";
-    item.textContent = "Past winners unavailable: " + error.message;
-    container.append(item);
-    return;
-  }
+  const userLabel = $('user-label');
+  if (userLabel) userLabel.textContent = '';
 
-  if (!data?.length) {
-    const item = document.createElement("p");
-    item.className = "muted";
-    item.textContent = "Past weekly winners will appear here.";
-    container.append(item);
-    return;
-  }
-
-  data.forEach((winner) => {
-    const item = document.createElement("article");
-    item.className = "archive-item";
-
-    const title = document.createElement("strong");
-    title.textContent =
-      winner.full_name ||
-      winner.name ||
-      winner.winner_name ||
-      "Weekly winner";
-
-    const details = document.createElement("p");
-    details.className = "muted";
-    details.textContent = [
-      winner.week_start ? `Week: ${winner.week_start}` : "",
-      winner.points != null ? `Points: ${winner.points}` : ""
-    ].filter(Boolean).join(" • ");
-
-    item.append(title, details);
-    container.append(item);
-  });
+  questions = [];
+  current = 0;
+  selected = {};
+  submitted = false;
 }
 
-async function loadAdminQuestions() {
-  const container = $("admin-question-list");
-  if (!container || currentRole !== "admin") return;
+// ---------------- SIGNED-IN SCREEN ----------------
 
-  container.replaceChildren();
+async function renderSignedIn(currentUser) {
+  if (!currentUser) return;
 
-  const { data, error } = await supabase
-    .from("questions")
-    .select("id,question_text,options,points,week_start")
-    .order("created_at", { ascending: false })
-    .limit(30);
+  user = currentUser;
 
-  if (error) {
-    const item = document.createElement("p");
-    item.className = "muted";
-    item.textContent = "Admin question loading error: " + error.message;
-    container.append(item);
-    return;
+  show('auth-panel', false);
+  show('app-panel', true);
+  show('logout-btn', true);
+
+  const label = $('user-label');
+  if (label) {
+    label.textContent =
+      currentUser.user_metadata?.full_name ||
+      currentUser.email ||
+      'Student';
   }
 
-  if (!data?.length) {
-    const item = document.createElement("p");
-    item.className = "muted";
-    item.textContent = "No questions found in the admin table.";
-    container.append(item);
-    return;
-  }
-
-  data.forEach((question) => {
-    const item = document.createElement("article");
-    item.className = "admin-question-item";
-
-    const title = document.createElement("strong");
-    title.textContent = question.question_text || "Untitled question";
-
-    const details = document.createElement("p");
-    details.className = "muted";
-    details.textContent =
-      `${Number(question.points) || 0} points · ID: ${question.id}`;
-
-    item.append(title, details);
-    container.append(item);
-  });
+  await loadRoleAndData(currentUser);
 }
 
-async function loadDashboard() {
-  await loadRole();
+// ---------------- SESSION HANDLING ----------------
 
-  await Promise.allSettled([
-    loadQuestions(),
-    loadLeaderboard(),
-    loadArchive()
-  ]);
-
-  if (currentRole === "admin") {
-    await loadAdminQuestions();
-  }
-}
-
+// Important: the auth listener does not call getSession() again.
+// This avoids repeated session-loading loops.
 async function loadSession() {
-  const { data, error } = await supabase.auth.getSession();
+  if (loadingSession) return;
 
-  if (error) {
-    renderSignedOut();
-    message("auth-message", "Session error: " + error.message, true);
-    return;
-  }
-
-  const user = data.session?.user || null;
-
-  if (!user) {
-    renderSignedOut();
-    return;
-  }
-
-  renderSignedIn(user);
-  await loadDashboard();
-}
-
-async function handleAuthSubmit(event) {
-  event.preventDefault();
-
-  if (busy) return;
-  busy = true;
-
-  const email = $("auth-email")?.value.trim();
-  const password = $("auth-password")?.value;
-  const fullName = $("auth-name")?.value.trim();
-
-  setButton("auth-submit", "Please wait…", true);
-  message("auth-message", "");
+  loadingSession = true;
+  const thisToken = ++sessionToken;
 
   try {
+    const { data, error } = await supabase.auth.getSession();
+
+    if (thisToken !== sessionToken) return;
+
+    if (error) {
+      console.error('Session error:', error);
+      say('auth-message', error.message, true);
+      renderSignedOut();
+      return;
+    }
+
+    const currentUser = data.session?.user || null;
+
+    if (!currentUser) {
+      user = null;
+      renderSignedOut();
+      return;
+    }
+
+    await renderSignedIn(currentUser);
+  } catch (error) {
+    console.error('Could not load session:', error);
+    say('auth-message', 'Could not load your session. Please refresh.', true);
+  } finally {
+    loadingSession = false;
+  }
+}
+
+// ---------------- LOGIN AND SIGNUP ----------------
+
+$('auth-form')?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  const submitButton = $('auth-submit');
+  if (submitButton) submitButton.disabled = true;
+
+  try {
+    const email = $('email')?.value.trim();
+    const password = $('password')?.value;
+    const fullName = $('full-name')?.value.trim();
+
+    if (!email || !password) {
+      say('auth-message', 'Enter your email and password.', true);
+      return;
+    }
+
+    if (mode === 'signup' && !fullName) {
+      say('auth-message', 'Please enter your full name.', true);
+      return;
+    }
+
+    say('auth-message', 'Please wait…');
+
     let result;
 
-    if (authMode === "signup") {
+    if (mode === 'signup') {
       result = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: SITE_URL,
-          data: { full_name: fullName || "" }
+          data: {
+            full_name: fullName,
+            display_name: fullName
+          },
+          emailRedirectTo: 'https://delulus-world.netlify.app/'
         }
       });
-
-      if (result.error) throw result.error;
-
-      if (result.data.session) {
-        renderSignedIn(result.data.user);
-        message("auth-message", "Account created successfully.");
-        await loadDashboard();
-      } else {
-        message(
-          "auth-message",
-          "Account created. Check your email to confirm it, then log in."
-        );
-      }
     } else {
-      result = await supabase.auth.signInWithPassword({ email, password });
-
-      if (result.error) throw result.error;
-
-      renderSignedIn(result.data.user);
-      message("auth-message", "Welcome back!");
-      await loadDashboard();
+      result = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
     }
-  } catch (error) {
-    console.error("Authentication error:", error);
-    message(
-      "auth-message",
-      error?.message || "Unable to complete authentication.",
-      true
-    );
-  } finally {
-    busy = false;
-    setButton(
-      "auth-submit",
-      authMode === "signup" ? "Create account →" : "Log in →",
-      false
-    );
-  }
-}
 
-async function handleLogout() {
-  const button = $("logout-btn");
-  if (button) button.disabled = true;
-
-  try {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-
-    renderSignedOut();
-    setAuthMode("login");
-    message("auth-message", "You have logged out.");
-  } catch (error) {
-    message("auth-message", error.message || "Logout failed.", true);
-  } finally {
-    if (button) button.disabled = false;
-  }
-}
-
-async function handleQuizSubmit(event) {
-  event.preventDefault();
-
-  if (!currentUser) {
-    message("quiz-message", "Please log in first.", true);
-    return;
-  }
-
-  if (!currentQuestions.length) {
-    message("quiz-message", "There are no questions to submit.", true);
-    return;
-  }
-
-  const answers = [];
-
-  for (const question of currentQuestions) {
-    const selected = document.querySelector(
-      `input[name="question-${CSS.escape(String(question.id))}"]:checked`
-    );
-
-    if (!selected) {
-      message("quiz-message", "Please answer every question first.", true);
+    if (result.error) {
+      say('auth-message', result.error.message, true);
       return;
     }
 
-    const selectedOption = Number(selected.value);
-
-    if (!Number.isInteger(selectedOption) ||
-        selectedOption < 0 ||
-        selectedOption > 3) {
-      message(
-        "quiz-message",
-        "Invalid answer option. Please reload the quiz.",
-        true
+    if (mode === 'signup' && !result.data.session) {
+      say(
+        'auth-message',
+        'Account created! Confirm your email, then return here and log in.'
       );
       return;
     }
 
-    answers.push({
-      question_id: question.id,
-      selected_option: selectedOption
-    });
-  }
-
-  const button = $("submit-quiz-btn");
-  if (button) button.disabled = true;
-
-  try {
-    // Keep this argument format consistent with the SQL function.
-    // This call assumes submit_quiz(p_week_start date, p_answers jsonb).
-    const weekStart = currentQuestions[0]?.week_start;
-
-    if (!weekStart) {
-      message("quiz-message", "The quiz week could not be identified.", true);
-      return;
+    if (result.data.session?.user) {
+      user = result.data.session.user;
+      say('auth-message', '');
+      toast(mode === 'signup' ? 'Account created!' : 'Welcome back!');
+      await renderSignedIn(user);
     }
-
-    const { data, error } = await supabase.rpc("submit_quiz", {
-      p_week_start: weekStart,
-      p_answers: answers
-    });
-
-    if (error) {
-      message("quiz-message", "Submission failed: " + error.message, true);
-      return;
-    }
-
-    message(
-      "quiz-message",
-      data?.message ||
-      `Answers submitted. Points earned: ${data?.points_earned ?? 0}`
-    );
-
-    await loadLeaderboard();
   } catch (error) {
-    message("quiz-message", error.message || "Submission failed.", true);
-  } finally {
-    if (button) button.disabled = false;
-  }
-}
-
-async function handleAdminQuestionSubmit(event) {
-  event.preventDefault();
-
-  if (!currentUser || currentRole !== "admin") {
-    message("admin-message", "Admin access is required.", true);
-    return;
-  }
-
-  const questionText = $("question-text")?.value.trim();
-  const points = Number($("question-points")?.value || 10);
-
-  // Correct-option dropdown must have values A, B, C, D.
-  const selectedCorrectOption = String(
-    $("correct-option")?.value ?? ""
-  ).trim().toUpperCase();
-
-  // Database integer convention: A=0, B=1, C=2, D=3.
-  const correctOptionIndex = ["A", "B", "C", "D"].indexOf(
-    selectedCorrectOption
-  );
-
-  const options = [
-    { key: "A", text: $("option-a")?.value.trim() || "" },
-    { key: "B", text: $("option-b")?.value.trim() || "" },
-    { key: "C", text: $("option-c")?.value.trim() || "" },
-    { key: "D", text: $("option-d")?.value.trim() || "" }
-  ];
-
-  if (!questionText) {
-    message("admin-message", "Please enter the question text.", true);
-    return;
-  }
-
-  if (options.some(option => !option.text)) {
-    message("admin-message", "Please fill in all four options.", true);
-    return;
-  }
-
-  if (!Number.isInteger(points) || points < 0) {
-    message("admin-message", "Points must be a non-negative integer.", true);
-    return;
-  }
-
-  if (correctOptionIndex === -1) {
-    message("admin-message", "Select the correct answer A, B, C, or D.", true);
-    return;
-  }
-
-  // Calculate Monday in India Standard Time.
-  const now = new Date();
-  const indiaDate = new Date(now.getTime() + 330 * 60 * 1000);
-  const weekday = indiaDate.getUTCDay();
-  const mondayOffset = (weekday + 6) % 7;
-
-  indiaDate.setUTCDate(indiaDate.getUTCDate() - mondayOffset);
-
-  const weekStart = indiaDate.toISOString().slice(0, 10);
-
-  const submitButton = $("admin-question-form")?.querySelector(
-    'button[type="submit"], button:not([type])'
-  );
-
-  if (submitButton) submitButton.disabled = true;
-  message("admin-message", "Saving question…");
-
-  try {
-    const questionToSave = {
-      question_text: questionText,
-      options,
-      correct_option: Number(correctOptionIndex),
-      points,
-      week_start: weekStart,
-      created_by: currentUser.id
-    };
-
-    const { error } = await supabase
-      .from("questions")
-      .insert(questionToSave);
-
-    if (error) {
-      console.error("Question save error:", error);
-      message("admin-message", "Could not save question: " + error.message, true);
-      return;
-    }
-
-    message("admin-message", "Question added successfully.");
-    $("admin-question-form")?.reset();
-
-    await loadAdminQuestions();
-  } catch (error) {
-    console.error("Question save error:", error);
-    message(
-      "admin-message",
-      "Could not save question: " + (error.message || "Unknown error"),
+    console.error('Authentication error:', error);
+    say(
+      'auth-message',
+      error.message || 'Something went wrong. Please try again.',
       true
     );
   } finally {
     if (submitButton) submitButton.disabled = false;
   }
-}
+});
 
-function initialise() {
-  $("login-tab")?.addEventListener("click", () => setAuthMode("login"));
-  $("signup-tab")?.addEventListener("click", () => setAuthMode("signup"));
-  $("auth-form")?.addEventListener("submit", handleAuthSubmit);
-  $("logout-btn")?.addEventListener("click", handleLogout);
-  $("quiz-form")?.addEventListener("submit", handleQuizSubmit);
+// ---------------- LOGOUT ----------------
 
-  $("admin-question-form")?.addEventListener(
-    "submit",
-    handleAdminQuestionSubmit
-  );
+$('logout-btn')?.addEventListener('click', async () => {
+  const button = $('logout-btn');
+  if (button) button.disabled = true;
 
-  setAuthMode("login");
+  try {
+    const { error } = await supabase.auth.signOut();
 
-  supabase.auth.onAuthStateChange((event, session) => {
-    if (event === "SIGNED_OUT") {
-      renderSignedOut();
+    if (error) {
+      toast(error.message);
       return;
     }
 
-    if (session?.user) {
-      renderSignedIn(session.user);
-      queueMicrotask(() => loadDashboard());
-    }
+    user = null;
+    sessionToken++;
+    renderSignedOut();
+    toast('Logged out successfully.');
+  } catch (error) {
+    toast(error.message || 'Logout failed.');
+  } finally {
+    if (button) button.disabled = false;
+  }
+});
+
+// ---------------- PROFILE, ROLE AND DATA ----------------
+
+async function loadRoleAndData(currentUser) {
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('display_name, role')
+    .eq('id', currentUser.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Profile error:', error);
+  }
+
+  if (profile?.display_name && $('user-label')) {
+    $('user-label').textContent = profile.display_name;
+  }
+
+  show('admin-panel', profile?.role === 'admin');
+
+  await Promise.all([
+    loadQuestions(),
+    loadLeaderboard(),
+    loadArchive()
+  ]);
+
+  if (profile?.role === 'admin') {
+    await loadAdminQuestions();
+  }
+}
+
+// ---------------- LOAD QUIZ QUESTIONS ----------------
+
+async function loadQuestions() {
+  const host = $('quiz-content');
+  if (!host) return;
+
+  const { data, error } = await supabase
+    .from('public_questions')
+    .select('id, question_text, options, points, week_start')
+    .eq('week_start', weekStartISO())
+    .eq('is_published', true)
+    .order('created_at');
+
+  if (error) {
+    console.error('Question loading error:', error);
+    host.innerHTML =
+      '<p class="muted">Could not load questions. Check the database view and access policies.</p>';
+    return;
+  }
+
+  questions = data || [];
+  current = 0;
+  selected = {};
+  submitted = false;
+
+  renderQuestion();
+}
+
+// ---------------- DISPLAY QUESTIONS ----------------
+
+function renderQuestion() {
+  const host = $('quiz-content');
+  if (!host) return;
+
+  if (!questions.length) {
+    host.innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">◎</div>
+        <h3>Questions are on the way</h3>
+        <p>The quiz administrator hasn’t published this week’s questions yet.</p>
+      </div>`;
+    return;
+  }
+
+  if (submitted) {
+    host.innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">✦</div>
+        <h3>Quiz submitted</h3>
+        <p>Your answers have been recorded. Check the leaderboard to see your standing.</p>
+        <button class="btn btn-primary" id="refresh-board">
+          Refresh leaderboard →
+        </button>
+      </div>`;
+
+    $('refresh-board')?.addEventListener('click', loadLeaderboard);
+    return;
+  }
+
+  const question = questions[current];
+  const options = Array.isArray(question.options) ? question.options : [];
+
+  host.innerHTML = `
+    <div class="question-card">
+      <div class="question-meta">
+        <span>QUESTION ${current + 1} OF ${questions.length}</span>
+        <span>${Number(question.points) || 1} point${Number(question.points) === 1 ? '' : 's'}</span>
+      </div>
+
+      <h3>${escapeHtml(question.question_text)}</h3>
+
+      <div class="answers">
+        ${options.map((option, index) => `
+          <button
+            type="button"
+            class="answer ${selected[question.id] === index ? 'selected' : ''}"
+            data-index="${index}">
+            <span class="letter">${letters[index] || ''}</span>
+            <span>${escapeHtml(option)}</span>
+          </button>
+        `).join('')}
+      </div>
+
+      <div class="quiz-controls">
+        <span class="quiz-progress">
+          ${Object.keys(selected).length} answered
+        </span>
+
+        <button type="button" id="next-question" class="btn btn-primary">
+          ${current === questions.length - 1 ? 'Submit quiz' : 'Next question'}
+          <span>→</span>
+        </button>
+      </div>
+    </div>`;
+
+  host.querySelectorAll('.answer').forEach((button) => {
+    button.addEventListener('click', () => {
+      selected[question.id] = Number(button.dataset.index);
+      renderQuestion();
+    });
   });
 
-  loadSession().catch((error) => {
-    console.error("Startup error:", error);
-    renderSignedOut();
-    message("auth-message", "Startup error: " + error.message, true);
+  $('next-question')?.addEventListener('click', async () => {
+    if (selected[question.id] === undefined) {
+      toast('Choose an answer first.');
+      return;
+    }
+
+    if (current < questions.length - 1) {
+      current++;
+      renderQuestion();
+    } else {
+      await submitQuiz();
+    }
   });
 }
 
-initialise();
+// ---------------- SUBMIT QUIZ ----------------
+
+async function submitQuiz() {
+  const button = $('next-question');
+  if (button) button.disabled = true;
+
+  const answers = questions.map((question) => ({
+    question_id: question.id,
+    selected_option: selected[question.id]
+  }));
+
+  try {
+    const { data, error } = await supabase.rpc('submit_quiz', {
+      p_week_start: weekStartISO(),
+      p_answers: answers
+    });
+
+    if (error) {
+      console.error('Quiz submission error:', error);
+      toast('Could not submit: ' + error.message);
+      if (button) button.disabled = false;
+      return;
+    }
+
+    submitted = true;
+    renderQuestion();
+
+    const points = data?.points_earned ?? 0;
+    toast(`Quiz submitted · ${points} points earned`);
+
+    await loadLeaderboard();
+  } catch (error) {
+    console.error(error);
+    toast(error.message || 'Quiz submission failed.');
+    if (button) button.disabled = false;
+  }
+}
+
+// ---------------- LEADERBOARD ----------------
+
+async function loadLeaderboard() {
+  const host = $('leaderboard');
+  if (!host) return;
+
+  const { data, error } = await supabase.rpc('weekly_leaderboard', {
+    p_week_start: weekStartISO()
+  });
+
+  if (error) {
+    console.error('Leaderboard error:', error);
+    host.innerHTML =
+      '<p class="muted">Leaderboard will appear after database setup.</p>';
+    return;
+  }
+
+  if (!data?.length) {
+    host.innerHTML =
+      '<p class="muted">No scores yet this week. Be the first to play!</p>';
+    return;
+  }
+
+  host.innerHTML = data.slice(0, 10).map((row, index) => `
+    <div class="leader-row">
+      <span class="rank ${index < 3 ? 'top' : ''}">
+        ${String(index + 1).padStart(2, '0')}
+      </span>
+
+      <div>
+        <div class="player-name">
+          ${escapeHtml(row.display_name || 'Student')}
+        </div>
+        <div class="player-sub">
+          ${row.attempts} attempt${row.attempts === 1 ? '' : 's'}
+        </div>
+      </div>
+
+      <span class="score">${Number(row.total_points) || 0} pts</span>
+    </div>
+  `).join('');
+}
+
+// ---------------- WINNERS ARCHIVE ----------------
+
+async function loadArchive() {
+  const host = $('archive');
+  if (!host) return;
+
+  const { data, error } = await supabase
+    .from('weekly_winners')
+    .select('week_start, winner_name, winner_points')
+    .order('week_start', { ascending: false })
+    .limit(12);
+
+  if (error || !data?.length) {
+    host.innerHTML =
+      '<p class="muted">No archived weeks yet. Winners appear after a week is closed and archived.</p>';
+    return;
+  }
+
+  host.innerHTML = data.map((row) => `
+    <div class="archive-item">
+      <span>
+        <span class="muted">${escapeHtml(row.week_start)}</span>
+        <br>
+        <strong>${escapeHtml(row.winner_name)}</strong>
+      </span>
+      <b>${Number(row.winner_points) || 0} pts</b>
+    </div>
+  `).join('');
+}
+
+// ---------------- ADD ADMIN QUESTION ----------------
+
+$('question-form')?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  if (!user) {
+    say('admin-message', 'Please log in again.', true);
+    return;
+  }
+
+  const button = event.target.querySelector('[type="submit"]');
+  if (button) button.disabled = true;
+
+  try {
+    const questionText = $('q-text')?.value.trim();
+    const options = [
+      $('opt-a')?.value.trim(),
+      $('opt-b')?.value.trim(),
+      $('opt-c')?.value.trim(),
+      $('opt-d')?.value.trim()
+    ];
+
+    if (!questionText || options.some((option) => !option)) {
+      say('admin-message', 'Enter the question and all four options.', true);
+      return;
+    }
+
+    const correctOption = Number($('correct-opt')?.value);
+
+    if (![0, 1, 2, 3].includes(correctOption)) {
+      say('admin-message', 'Select the correct option.', true);
+      return;
+    }
+
+    const payload = {
+      question_text: questionText,
+      options,
+      correct_option: correctOption,
+      points: Number($('points')?.value) || 1,
+      week_start: weekStartISO(),
+      is_published: true,
+      created_by: user.id
+    };
+
+    const { error } = await supabase.from('questions').insert(payload);
+
+    if (error) {
+      console.error('Add question error:', error);
+      say('admin-message', error.message, true);
+      return;
+    }
+
+    event.target.reset();
+
+    if ($('points')) $('points').value = 1;
+
+    say('admin-message', 'Question added and published.');
+    await loadQuestions();
+    await loadAdminQuestions();
+  } catch (error) {
+    console.error(error);
+    say('admin-message', error.message || 'Could not add question.', true);
+  } finally {
+    if (button) button.disabled = false;
+  }
+});
+
+// ---------------- ADMIN QUESTION LIST ----------------
+
+async function loadAdminQuestions() {
+  const host = $('admin-question-list');
+  if (!host) return;
+
+  const { data, error } = await supabase
+    .from('questions')
+    .select('id, question_text, is_published')
+    .eq('week_start', weekStartISO())
+    .order('created_at');
+
+  if (error) {
+    console.error('Admin questions error:', error);
+    host.innerHTML =
+      '<p class="muted">Could not load admin question list.</p>';
+    return;
+  }
+
+  host.innerHTML = (data || []).map((question) => `
+    <div class="admin-question">
+      <span>
+        ${escapeHtml(question.question_text)}
+        <span class="muted">
+          · ${question.is_published ? 'Published' : 'Draft'}
+        </span>
+      </span>
+      <button type="button" data-delete="${escapeHtml(question.id)}">
+        Delete
+      </button>
+    </div>
+  `).join('');
+
+  host.querySelectorAll('[data-delete]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      if (!confirm('Delete this question?')) return;
+
+      const { error } = await supabase
+        .from('questions')
+        .delete()
+        .eq('id', button.dataset.delete);
+
+      if (error) {
+        toast(error.message);
+        return;
+      }
+
+      toast('Question deleted.');
+      await loadQuestions();
+      await loadAdminQuestions();
+    });
+  });
+}
+
+// ---------------- INITIALISE APP ----------------
+
+weekLabel();
+setMode('login');
+renderSignedOut();
+
+// Load the existing session once.
+loadSession();
+
+// Handle auth events without recursively calling getSession().
+// A short delay lets Supabase finish its internal auth event first.
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_OUT') {
+    sessionToken++;
+    user = null;
+    renderSignedOut();
+    return;
+  }
+
+  if (event === 'SIGNED_IN' && session?.user) {
+    setTimeout(() => {
+      if (user?.id !== session.user.id) {
+        renderSignedIn(session.user);
+      }
+    }, 0);
+  }
+});
